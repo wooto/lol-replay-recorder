@@ -101,6 +101,7 @@ module.exports = {
         '@typescript-eslint/no-empty-interface': 'off',
         /** RequestType<Params = {}, Queries = {}, Body = {}>에서 error 발생 */
         '@typescript-eslint/ban-types': 'off',
+        'prettier/prettier': ['error', { endOfLine: 'auto' }],
       },
     },
   ],
