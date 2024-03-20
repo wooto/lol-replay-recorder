@@ -3,6 +3,7 @@ import { sleepInSeconds } from '../../utils/utils';
 import LeagueClient from './apis/league-client';
 import * as fs from 'fs';
 import path from 'node:path';
+import { parseMIMEType } from 'undici';
 
 export class RecorderService {
   async cleanUp() {
@@ -28,10 +29,8 @@ export class RecorderService {
     cameraMode?: 'centerScreen' | 'auto';
   }) {
     params.startTime = params.startTime || 0;
-    params.endTime = params.endTime || Number.MIN_VALUE;
     params.cameraMode = params.cameraMode || 'auto';
-
-    await this.cleanUp();
+    console.log(await LeagueClient.getPatchVersion());
 
     const replay = new Replay();
     try {
@@ -40,6 +39,7 @@ export class RecorderService {
       await replay.init();
       await replay.waitForAssetsToLoad();
       await LeagueClient.enableWindowMode();
+      params.endTime = params.endTime || (await replay.getPlaybackProperties()).length;
 
       if (params.cameraMode === 'centerScreen') {
         await this.setCenterScreen(replay);
@@ -65,13 +65,11 @@ export class RecorderService {
         recording: true,
       });
       const recordingProperties = await replay.getRecordingProperties();
-      await replay.waitForRecording();
+      await replay.waitForRecordingToFinish(params.endTime);
       await replay.postRecordingProperties({
         recording: false,
       });
-      await sleepInSeconds(5);
       await replay.exit();
-      await sleepInSeconds(10);
       return recordingProperties;
     } finally {
       await replay.exit();

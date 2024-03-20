@@ -96,8 +96,7 @@ export class LeagueClient {
 
   async launchReplay(matchId: any) {
     await this.downloadReplay(matchId);
-    const resp = await makeRequest('POST', `/lol-replays/v1/rofls/${matchId}/watch`);
-    console.log('watch replay resp ', resp);
+    await makeRequest('POST', `/lol-replays/v1/rofls/${matchId}/watch`);
   }
 
   /// MATCH REQUESTS ///
