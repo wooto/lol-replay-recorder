@@ -4,7 +4,7 @@ import LeagueClient from './apis/league-client';
 import * as fs from 'fs';
 import path from 'node:path';
 
-export class RecorderService {
+export class LolRecorderService {
   async cleanUp() {
     const recursiveDelete = (folderPath: string) => {
       fs.readdirSync(folderPath).forEach(file => {
