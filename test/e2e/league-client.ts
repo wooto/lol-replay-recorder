@@ -31,4 +31,10 @@ describe('league-client', () => {
     const config = await leagueClient.getReplayConfig();
     expect(config).to.not.null;
   });
+
+  it('should getCurrentSummoner to be not null', async () => {
+    let leagueClient = new LeagueClient();
+    const summoner = await leagueClient.getCurrentSummoner();
+    expect(summoner).to.not.null;
+  });
 });
