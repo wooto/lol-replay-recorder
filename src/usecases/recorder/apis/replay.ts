@@ -55,7 +55,7 @@ class Replay {
     return await makeRequest('POST', `${this.url}/replay/playback`, {}, options);
   }
 
-  async getRecordingProperties(): Promise<{
+  public async getRecordingProperties(): Promise<{
     endTime: number;
     currentTime: number;
     recording: boolean;
@@ -64,19 +64,19 @@ class Replay {
     return await makeRequest('GET', `${this.url}/replay/recording`);
   }
 
-  async postRecordingProperties(options: any) {
+  public async postRecordingProperties(options: any) {
     return await makeRequest('POST', `${this.url}/replay/recording`, {}, options);
   }
 
-  async getRenderProperties() {
+  public async getRenderProperties() {
     return await makeRequest('GET', `${this.url}/replay/render`);
   }
 
-  async postRenderProperties(options: any) {
+  public async postRenderProperties(options: any) {
     return await makeRequest('POST', `${this.url}/replay/render`, {}, options);
   }
 
-  async load(timeout: number, numRetries: number) {
+  public async load(timeout: number, numRetries: number) {
     let responseReceived = false;
     do {
       try {
@@ -100,7 +100,7 @@ class Replay {
     await this.waitForAssetsToLoad();
   }
 
-  async waitForAssetsToLoad() {
+  public async waitForAssetsToLoad() {
     let playbackState;
     let paused;
     let time;
@@ -111,12 +111,11 @@ class Replay {
     } while (time < 15 && !paused);
   }
 
-  async waitForRecordingToFinish(time: number) {
+  public async waitForRecordingToFinish(time: number) {
     let waitTime = time;
     let recording;
     do {
-      // await sleepInSeconds(waitTime);
-      await sleepInSeconds(1);
+      await sleepInSeconds(waitTime);
       const recordingState = await this.getRecordingProperties();
       recording = recordingState.recording;
       waitTime = recordingState.endTime - recordingState.currentTime;
