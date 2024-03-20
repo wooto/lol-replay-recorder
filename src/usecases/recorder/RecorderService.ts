@@ -1,9 +1,7 @@
 import Replay from './apis/replay';
 import { sleepInSeconds } from '../../utils/utils';
 import LeagueClient from './apis/league-client';
-import { Service } from 'typedi';
 
-@Service()
 export class RecorderService {
   async cleanUp() {
     const replay = new Replay();

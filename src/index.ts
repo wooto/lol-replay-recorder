@@ -1,21 +1,9 @@
 #!/usr/bin/env node
-import 'reflect-metadata';
 
-import { AutoRecorderApplication } from './application/AutoRecorderApplication';
-import { sleep } from './utils/utils';
-import { Container } from 'typedi';
+import { RecorderService } from './usecases/recorder/RecorderService';
 
 const main = async () => {
-  const serviceInstance = Container.get(AutoRecorderApplication);
-
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition,no-constant-condition
-  while (true) {
-    try {
-      await serviceInstance.record();
-    } catch (e) {
-      console.error(e);
-    }
-    await sleep(60 * 1000);
-  }
+  const recorder = new RecorderService();
+  await recorder.record({ gameId: 1, summonerName: 'test' });
 };
 main();
