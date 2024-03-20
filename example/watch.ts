@@ -1,3 +1,4 @@
+import { exit } from 'node:process';
 import { LolRecorderService } from '../src';
 
 
@@ -8,4 +9,8 @@ await new LolRecorderService().record({
   endTime: 40,
   summonerName: 'PlayerName',
   cameraMode: 'auto',
+  interfaceScoreboard: true,
+  interfaceTimeline: false,
 });
+
+exit(0);

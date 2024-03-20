@@ -57,6 +57,15 @@ export class LolRecorderService {
       }
       params.endTime = params.endTime || (await replay.getPlaybackProperties()).length;
 
+
+      await replay.postPlaybackProperties({
+        time: params.startTime,
+        paused: false,
+        seeking: false,
+        speed: 1.0,
+        length: 0,
+      });
+
       await replay.postRenderProperties({
         ...(params.summonerName && { selectionName: params.summonerName }),
         ...(params.cameraMode === 'centerScreen' && {
@@ -72,14 +81,7 @@ export class LolRecorderService {
         interfaceScoreboard: params.interfaceScoreboard,
       });
 
-      await replay.postPlaybackProperties({
-        time: params.startTime,
-        paused: false,
-        seeking: false,
-        speed: 1.0,
-        length: 0,
-      });
-      await sleepInSeconds(2);
+      await sleepInSeconds(5);
 
       await replay.postRecordingProperties({
         startTime: params.startTime,
