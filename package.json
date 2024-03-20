@@ -1,10 +1,10 @@
 {
   "name": "@wooto/lol-replay-recorder",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "type": "module",
   "types": "dist/index.d.ts",
-  "module": "./dist/index.js",
-  "main": "./dist/index.cjs",
+  "module": "dist/index.js",
+  "main": "dist/index.cjs",
   "license": "MIT",
   "author": "wooto",
   "description": "A library to record League of Legends replays",
