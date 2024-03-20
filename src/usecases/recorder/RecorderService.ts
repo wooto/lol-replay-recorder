@@ -1,46 +1,64 @@
 import Replay from './apis/replay';
 import { sleepInSeconds } from '../../utils/utils';
 import LeagueClient from './apis/league-client';
+import * as fs from 'fs';
+import path from 'node:path';
 
 export class RecorderService {
   async cleanUp() {
-    const replay = new Replay();
-    await replay.exit();
+    const recursiveDelete = (folderPath: string) => {
+      fs.readdirSync(folderPath).forEach(file => {
+        const filePath = path.join(folderPath, file);
+        fs.unlinkSync(filePath);
+      });
+    };
+
+    const highlightsFolderPath = await LeagueClient.getHighlightsFolderPath();
+    recursiveDelete(highlightsFolderPath);
+
+    const rotlsPath = await LeagueClient.getRoflsPath();
+    recursiveDelete(rotlsPath);
   }
 
-  async launch() {
-    const replay = new Replay();
-    await replay.exit();
-    await sleepInSeconds(5);
-    await replay.exit();
-  }
+  async record(params: {
+    gameId: number;
+    summonerName?: string;
+    startTime?: number;
+    endTime?: number;
+    cameraMode?: 'centerScreen' | 'auto';
+    interfaceTimeline?: boolean;
+    interfaceScoreboard?: boolean;
+  }) {
+    params.startTime = params.startTime || 0;
+    params.cameraMode = params.cameraMode || 'auto';
+    console.log(await LeagueClient.getPatchVersion());
 
-  async record(metadata: { gameId: number; summonerName: string }) {
-    await LeagueClient.getHighlightsFolderPath();
     const replay = new Replay();
-    await replay.exit();
-    await sleepInSeconds(5);
     try {
-      await LeagueClient.launchReplay(metadata.gameId);
+      await LeagueClient.launchReplay(params.gameId);
       await replay.load(10, 10); // Add global vars
       await replay.init();
       await replay.waitForAssetsToLoad();
       await LeagueClient.enableWindowMode();
+      params.endTime = params.endTime || (await replay.getPlaybackProperties()).length;
+
       await replay.postRenderProperties({
-        interfaceTimeline: false,
-        cameraAttached: true, // cameraAttatched setting only works when cameraMode=fps
-        selectionName: metadata.summonerName,
-        cameraMode: 'fps',
-        interfaceScoreboard: true,
-        selectionOffset: {
-          x: 0.0,
-          y: 1911.85,
-          z: -1350.0,
-        },
+        ...(params.summonerName && { selectionName: params.summonerName }),
+        ...(params.cameraMode === 'centerScreen' && {
+          cameraAttached: true, // cameraAttatched setting only works when cameraMode=fps
+          cameraMode: 'fps',
+          selectionOffset: {
+            x: 0.0,
+            y: 1911.85,
+            z: -1350.0,
+          },
+        }),
+        ...(params.interfaceTimeline && { interfaceTimeline: true }),
+        ...(params.interfaceScoreboard && { interfaceScoreboard: true }),
       });
 
       await replay.postPlaybackProperties({
-        time: 30,
+        time: params.startTime,
         paused: false,
         seeking: false,
         speed: 1.0,
@@ -49,19 +67,18 @@ export class RecorderService {
       await sleepInSeconds(2);
 
       await replay.postRecordingProperties({
-        startTime: 30,
+        startTime: params.startTime,
+        endTime: params.endTime,
         height: 1080,
         width: 1920,
         recording: true,
       });
       const recordingProperties = await replay.getRecordingProperties();
-      await replay.waitForRecording();
+      await replay.waitForRecordingToFinish(params.endTime);
       await replay.postRecordingProperties({
         recording: false,
       });
-      await sleepInSeconds(5);
       await replay.exit();
-      await sleepInSeconds(10);
       return recordingProperties;
     } finally {
       await replay.exit();

@@ -84,4 +84,14 @@ describe('league-client', () => {
     const replay = await leagueClient.downloadReplay(match.gameId);
     expect(replay).to.not.null;
   });
+
+  it.skip('should launchReplay to be not null', async () => {
+    let leagueClient = new LeagueClient();
+    const { puuid } = await getSummoner();
+    const matchHistory = await leagueClient.getMatchHistoryByPuuid(puuid, 0, 10);
+    console.dir(matchHistory, {depth: null});
+    const match = matchHistory[0];
+    const replay = await leagueClient.launchReplay(match.gameId);
+    expect(replay).to.not.null;
+  });
 });

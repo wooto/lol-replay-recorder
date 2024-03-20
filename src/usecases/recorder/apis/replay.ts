@@ -84,7 +84,6 @@ class Replay {
         await this.getRecordingProperties();
         responseReceived = true;
       } catch (err) {
-        console.log(err);
         numRetries--;
         // EventService.publish('clipProgress', `Loading replay...`);
         console.log(
@@ -99,7 +98,6 @@ class Replay {
       );
     }
     await this.waitForAssetsToLoad();
-    // EventService.publish('clipProgress', `Replay loaded succcessfully...`);
   }
 
   async waitForAssetsToLoad() {
@@ -107,49 +105,18 @@ class Replay {
     let paused;
     let time;
     do {
-      // EventService.publish(
-      //   'clipProgress',
-      //   `Waiting for game assets to load...`,
-      // );
       playbackState = await this.getPlaybackProperties();
       time = playbackState.time;
       paused = playbackState.paused;
     } while (time < 15 && !paused);
   }
 
-  async waitForRecording() {
-    let recording = false;
-    let waitTime = 0;
-
-    do {
-      const recordingState = await this.getRecordingProperties();
-      const playback = await this.getPlaybackProperties();
-      recording = recordingState.recording;
-      waitTime = playback.length - recordingState.currentTime - 1;
-      // await sleepInSeconds(waitTime);
-      console.log(
-        'waiting for recording to finish, waitTime:',
-        waitTime,
-        'recording:',
-        recording,
-        'currentTime:',
-        recordingState.currentTime,
-        'endTime:',
-        recordingState.endTime,
-      );
-      console.log('recordingState:', playback);
-      await sleepInSeconds(1);
-      // if(recordingState.currentTime > 10) {
-      //   break;
-      // }
-    } while (recording && waitTime > 0);
-  }
-
   async waitForRecordingToFinish(time: number) {
     let waitTime = time;
     let recording;
     do {
-      await sleepInSeconds(waitTime);
+      // await sleepInSeconds(waitTime);
+      await sleepInSeconds(1);
       const recordingState = await this.getRecordingProperties();
       recording = recordingState.recording;
       waitTime = recordingState.endTime - recordingState.currentTime;
