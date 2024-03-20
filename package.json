@@ -38,7 +38,7 @@
   "dependencies": {
     "@fightmegg/riot-api": "^0.0.19",
     "league-connect": "^6.0.0-rc12",
-    "lodash": "^4.17.21",
+    "lodash": "^4.17.21"
   },
   "repository": {
     "type": "git",
