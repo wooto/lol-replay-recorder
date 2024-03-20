@@ -1,4 +1,4 @@
-name: build and test codebase
+name: e2e test
 
 on:
   schedule:
