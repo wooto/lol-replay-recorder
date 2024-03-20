@@ -13,4 +13,10 @@ describe('league-client', () => {
     const path = await leagueClient.getHighlightsFolderPath();
     expect(path).to.not.null;
   });
+
+  it('should getGameSettings to be not null', async () => {
+    let leagueClient = new LeagueClient();
+    const settings = await leagueClient.getGameSettings();
+    expect(settings).to.not.null;
+  });
 });
