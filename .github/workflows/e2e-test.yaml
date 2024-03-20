@@ -1,0 +1,57 @@
+name: build and test codebase
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  pull_request:
+  push:
+    branches:
+      - main
+
+#concurrency:
+#  group: ${{ github.workflow }}-${{ github.ref }}
+#  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    strategy:
+      matrix:
+        os: [windows-latest]
+        version: [20.x]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Cache node modules
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Setup League Client
+        id: league-client
+        uses: magisteriis/setup-league-client@ea5ea0748d459cb8e4bade9d50d2f81b70f009f7
+        with:
+          username: ${{ secrets.LOL_USERNAME }}
+          password: ${{ secrets.LOL_PASSWORD }}
+          region: EUW
+
+      - name: Lint
+        run: npm run lint-check
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm test
+
