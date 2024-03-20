@@ -19,4 +19,10 @@ describe('league-client', () => {
     const settings = await leagueClient.getGameSettings();
     expect(settings).to.not.null;
   });
+
+  it('should getInputSettings to be not null', async () => {
+    let leagueClient = new LeagueClient();
+    const settings = await leagueClient.getInputSettings();
+    expect(settings).to.not.null;
+  });
 });
