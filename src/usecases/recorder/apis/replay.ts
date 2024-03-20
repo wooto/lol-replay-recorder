@@ -107,10 +107,6 @@ class Replay {
     let paused;
     let time;
     do {
-      // EventService.publish(
-      //   'clipProgress',
-      //   `Waiting for game assets to load...`,
-      // );
       playbackState = await this.getPlaybackProperties();
       time = playbackState.time;
       paused = playbackState.paused;
@@ -127,16 +123,6 @@ class Replay {
       recording = recordingState.recording;
       waitTime = playback.length - recordingState.currentTime - 1;
       // await sleepInSeconds(waitTime);
-      console.log(
-        'waiting for recording to finish, waitTime:',
-        waitTime,
-        'recording:',
-        recording,
-        'currentTime:',
-        recordingState.currentTime,
-        'endTime:',
-        recordingState.endTime,
-      );
       console.log('recordingState:', playback);
       await sleepInSeconds(1);
       // if(recordingState.currentTime > 10) {
