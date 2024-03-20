@@ -37,4 +37,10 @@ describe('league-client', () => {
     const summoner = await leagueClient.getCurrentSummoner();
     expect(summoner).to.not.null;
   });
+
+  it('should getPatchVersion to be not null', async () => {
+    let leagueClient = new LeagueClient();
+    const patches = await leagueClient.getPatchVersion();
+    expect(patches).to.not.null;
+  });
 });
