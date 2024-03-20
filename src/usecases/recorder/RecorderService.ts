@@ -3,7 +3,6 @@ import { sleepInSeconds } from '../../utils/utils';
 import LeagueClient from './apis/league-client';
 import * as fs from 'fs';
 import path from 'node:path';
-import { parseMIMEType } from 'undici';
 
 export class RecorderService {
   async cleanUp() {
@@ -27,6 +26,8 @@ export class RecorderService {
     startTime?: number;
     endTime?: number;
     cameraMode?: 'centerScreen' | 'auto';
+    interfaceTimeline?: boolean;
+    interfaceScoreboard?: boolean;
   }) {
     params.startTime = params.startTime || 0;
     params.cameraMode = params.cameraMode || 'auto';
@@ -41,11 +42,19 @@ export class RecorderService {
       await LeagueClient.enableWindowMode();
       params.endTime = params.endTime || (await replay.getPlaybackProperties()).length;
 
-      if (params.cameraMode === 'centerScreen') {
-        await this.setCenterScreen(replay);
-      }
       await replay.postRenderProperties({
-        selectionName: params.summonerName,
+        ...(params.summonerName && { selectionName: params.summonerName }),
+        ...(params.cameraMode === 'centerScreen' && {
+          cameraAttached: true, // cameraAttatched setting only works when cameraMode=fps
+          cameraMode: 'fps',
+          selectionOffset: {
+            x: 0.0,
+            y: 1911.85,
+            z: -1350.0,
+          },
+        }),
+        ...(params.interfaceTimeline && { interfaceTimeline: true }),
+        ...(params.interfaceScoreboard && { interfaceScoreboard: true }),
       });
 
       await replay.postPlaybackProperties({
@@ -75,19 +84,5 @@ export class RecorderService {
       await replay.exit();
     }
     // return metadata
-  }
-
-  private async setCenterScreen(replay: Replay) {
-    await replay.postRenderProperties({
-      interfaceTimeline: false,
-      cameraAttached: true, // cameraAttatched setting only works when cameraMode=fps
-      cameraMode: 'fps',
-      interfaceScoreboard: true,
-      selectionOffset: {
-        x: 0.0,
-        y: 1911.85,
-        z: -1350.0,
-      },
-    });
   }
 }
