@@ -1,5 +1,5 @@
 {
-  "name": "lol-replay-recorder",
+  "name": "@wooto/lol-replay-recorder",
   "version": "1.0.0",
   "main": "dist/src/index.js",
   "typings": "dist/src/index.d.ts",
@@ -43,7 +43,6 @@
     "tsup": "^8.0.2",
     "typescript": "^5.4.2"
   },
-  "packageManager": "yarn@3.6.0",
   "dependencies": {
     "@fightmegg/riot-api": "^0.0.19",
     "@google-cloud/local-auth": "^3.0.1",
@@ -58,6 +57,10 @@
     "node-fetch": "^3.3.2",
     "reflect-metadata": "^0.2.1",
     "undici": "^6.9.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wooto/lol-replay-recorder.git"
   },
   "type": "module"
 }
