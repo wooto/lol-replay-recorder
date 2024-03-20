@@ -1,11 +1,15 @@
 import Replay from './apis/replay';
 import { sleepInSeconds } from '../../utils/utils';
 import LeagueClient from './apis/league-client';
+import * as fs from 'fs';
 
 export class RecorderService {
   async cleanUp() {
-    const replay = new Replay();
-    await replay.exit();
+    const highlightsFolderPath = await LeagueClient.getHighlightsFolderPath();
+    fs.rmdirSync(highlightsFolderPath, { recursive: true });
+
+    const rotlsPath = await LeagueClient.getRoflsPath();
+    fs.rmdirSync(rotlsPath, { recursive: true });
   }
 
   async launch() {
