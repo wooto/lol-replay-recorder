@@ -1,8 +1,8 @@
 {
   "name": "@wooto/lol-replay-recorder",
   "version": "0.0.5",
-  "main": "dist/src/index.js",
-  "typings": "dist/src/index.d.ts",
+  "main": "dist/index.js",
+  "typings": "dist/index.d.ts",
   "files": [
     "dist"
   ],
