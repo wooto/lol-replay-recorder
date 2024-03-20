@@ -16,7 +16,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsup src/index.ts --format esm,cjs,ts --clean --dts --sourcemap",
+    "build": "tsup src/index.ts --format esm,cjs --clean --dts --sourcemap",
     "lint": "eslint --fix .",
     "lint-check": "eslint .",
     "start": "node --loader ts-node/esm",
