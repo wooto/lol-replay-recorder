@@ -5,7 +5,7 @@ import * as fs from 'fs';
 import path from 'node:path';
 
 export class LolRecorderService {
-  async cleanUp() {
+  public async cleanUp() {
     const recursiveDelete = (folderPath: string) => {
       fs.readdirSync(folderPath).forEach(file => {
         const filePath = path.join(folderPath, file);
@@ -20,7 +20,7 @@ export class LolRecorderService {
     recursiveDelete(rotlsPath);
   }
 
-  async record(params: {
+  public async record(params: {
     gameId: number;
     summonerName?: string;
     startTime?: number;
