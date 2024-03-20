@@ -67,7 +67,7 @@ export class LeagueClient {
     return await makeRequest('GET', '/lol-replays/v1/configuration');
   }
 
-  async getReplayMetaData(matchId: any) {
+  async getReplayMetaData(matchId: string) {
     return await makeRequest('GET', `/lol-replays/v1/metadata/${matchId}`);
   }
 
@@ -92,7 +92,6 @@ export class LeagueClient {
         );
       }
     } while (downloadState !== completed);
-    // EventService.publish('clipProgress', 'Replay successfully downloaded...');
   }
 
   async launchReplay(matchId: any) {
