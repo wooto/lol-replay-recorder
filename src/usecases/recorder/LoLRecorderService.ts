@@ -4,6 +4,23 @@ import LeagueClient from './apis/league-client';
 import * as fs from 'fs';
 import path from 'node:path';
 
+export type RecordParams = {
+  gameId: number;
+  summonerName?: string;
+  startTime?: number;
+  endTime?: number;
+  cameraMode?: 'centerScreen' | 'auto';
+  interfaceTimeline?: boolean;
+  interfaceScoreboard?: boolean;
+}
+
+export type RecordResult = {
+  endTime: number;
+  currentTime: number;
+  recording: boolean;
+  path: string;
+};
+
 export class LolRecorderService {
   public async cleanUp() {
     const recursiveDelete = (folderPath: string) => {
@@ -20,15 +37,7 @@ export class LolRecorderService {
     recursiveDelete(rotlsPath);
   }
 
-  public async record(params: {
-    gameId: number;
-    summonerName?: string;
-    startTime?: number;
-    endTime?: number;
-    cameraMode?: 'centerScreen' | 'auto';
-    interfaceTimeline?: boolean;
-    interfaceScoreboard?: boolean;
-  }) {
+  public async record(params: RecordParams): Promise<RecordResult> {
     params.startTime = params.startTime || 0;
     params.cameraMode = params.cameraMode || 'auto';
     console.log(await LeagueClient.getPatchVersion());
@@ -83,7 +92,7 @@ export class LolRecorderService {
     } finally {
       await replay.exit();
     }
-    // return metadata
+
   }
 
   public async getHighlightsFolderPath() {
