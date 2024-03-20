@@ -85,4 +85,8 @@ export class LolRecorderService {
     }
     // return metadata
   }
+
+  public async getHighlightsFolderPath() {
+    return await LeagueClient.getHighlightsFolderPath();
+  }
 }
