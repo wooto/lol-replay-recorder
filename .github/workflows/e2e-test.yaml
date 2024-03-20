@@ -44,7 +44,7 @@ jobs:
         with:
           username: ${{ secrets.LOL_USERNAME }}
           password: ${{ secrets.LOL_PASSWORD }}
-          region: EUW
+          region: KR
 
       - name: Lint
         run: npm run lint-check
