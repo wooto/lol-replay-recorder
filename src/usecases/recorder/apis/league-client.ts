@@ -2,7 +2,7 @@ import { makeRequest } from '../models/requests';
 import Summoner from '../models/summoner';
 import CustomError from '../models/custom-error';
 
-export class LeagueClient {
+class LeagueClient {
   patch: string;
 
   constructor() {
@@ -10,7 +10,7 @@ export class LeagueClient {
   }
 
   /// GAME SETTINGS/CONFIGURATION REQUESTS ///
-  async getHighlightsFolderPath() {
+  async getHighlightsFolderPath(): Promise<string> {
     return await makeRequest('GET', '/lol-highlights/v1/highlights-folder-path');
   }
 

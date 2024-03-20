@@ -16,10 +16,10 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsup src/index.ts --format esm,cjs --clean --dts --sourcemap",
+    "build": "tsup src/index.ts --format esm,cjs,ts --clean --dts --sourcemap",
     "lint": "eslint --fix .",
     "lint-check": "eslint .",
-    "start": "node --loader ts-node/esm ./src/index.ts",
+    "start": "node --loader ts-node/esm",
     "test": "mocha --timeout 5000 --exit -r ts-node/register 'test/**/*.ts'",
     "test:e2e": "mocha --timeout 5000 --exit  -r ts-node/register 'test/e2e/*.ts'",
     "test:unit": "mocha --timeout 5000 --exit --parallel -r ts-node/register 'test/unit/*.ts'"

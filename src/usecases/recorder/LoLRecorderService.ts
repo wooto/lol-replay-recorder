@@ -1,8 +1,8 @@
 import Replay from './apis/replay';
 import { sleepInSeconds } from '../../utils/utils';
-import LeagueClient from './apis/league-client';
 import * as fs from 'fs';
 import path from 'node:path';
+import LeagueClient from './apis/league-client';
 
 export type RecordParams = {
   gameId: number;
