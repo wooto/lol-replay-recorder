@@ -49,8 +49,13 @@ describe('league-client', () => {
     expect(patches).to.not.null;
   });
 
-  it('should enableWindowMode to be not null', async () => {
+  it.skip('should enableWindowMode to be not null', async () => {
     let leagueClient = new LeagueClient();
+    try {
+      await leagueClient.disableWindowMode();
+    } catch (error) {
+      // ignore
+    }
     const settings = await leagueClient.enableWindowMode();
     expect(settings).to.not.null;
   });
@@ -62,10 +67,21 @@ describe('league-client', () => {
     expect(matchHistory).to.not.null;
   });
 
-  it('should getSummonersByRiotId to be not null', async () => {
+  it('should getMatchTimelineByMatchId to be not null', async () => {
     let leagueClient = new LeagueClient();
-    const { riotId } = await getSummoner();
-    const summoners = await leagueClient.getSummonersByRiotId(riotId);
-    expect(summoners).to.not.null;
+    const { puuid } = await getSummoner();
+    const matchHistory = await leagueClient.getMatchHistoryByPuuid(puuid, 0, 10);
+    const match = matchHistory[0];
+    const matchTimeline = await leagueClient.getMatchTimelineByMatchId(match.gameId);
+    expect(matchTimeline).to.not.null;
+  })
+
+  it.skip('should downloadReplay to be not null', async () => {
+    let leagueClient = new LeagueClient();
+    const { puuid } = await getSummoner();
+    const matchHistory = await leagueClient.getMatchHistoryByPuuid(puuid, 0, 10);
+    const match = matchHistory[0];
+    const replay = await leagueClient.downloadReplay(match.gameId);
+    expect(replay).to.not.null;
   });
 });

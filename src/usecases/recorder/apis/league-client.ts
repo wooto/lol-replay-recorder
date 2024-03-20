@@ -30,6 +30,22 @@ export class LeagueClient {
     return await makeRequest('POST', '/lol-game-settings/v1/save');
   }
 
+  async disableWindowMode() {
+    const settingsResource = {
+      General: {
+        WindowMode: 0,
+      },
+    };
+    const updatedSettings = await this.patchGameSettings(settingsResource);
+    const saved = await this.saveGameSettings();
+    if (!saved) {
+      throw new CustomError(
+        'Failed to disable windowed mode automatically. Please manually disable it in the League Client settings before attempting to record a clip.',
+      );
+    }
+    return updatedSettings;
+  }
+
   async enableWindowMode() {
     const settingsResource = {
       General: {
