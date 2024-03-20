@@ -5,19 +5,11 @@
   "typings": "dist/src/index.d.ts",
   "scripts": {
     "build": "cross-env NODE_ENV=production tsc -p tsconfig.json",
-    "bundle": "node tasks.mjs bundle",
-    "clean": "node tasks.mjs clean",
-    "dev": "concurrently \"npm:watch-*\"",
-    "format": "node tasks.mjs format --write",
-    "format-check": "node tasks.mjs format --check",
-    "lint": "node tasks.mjs lint --fix",
-    "lint-check": "node tasks.mjs lint",
+    "lint": "eslint --fix .",
+    "lint-check": "eslint .",
     "start": "cross-env NODE_ENV=production node --loader ts-node/esm ./src/index.ts",
-    "console": "cross-env NODE_ENV=development node --loader ts-node/esm ./src/console/record.ts",
     "test": "cross-env NODE_ENV=test mocha --timeout 5000 --exit -r ts-node/register 'test/**/*.ts'",
-    "test:ci": "cross-env NODE_ENV=test mocha --timeout 5000 --exit --parallel -r ts-node/register 'test/**/*.ts'",
-    "watch-node": "node tasks.mjs watch-node",
-    "watch-ts": "node tasks.mjs watch-ts"
+    "test:ci": "cross-env NODE_ENV=test mocha --timeout 5000 --exit --parallel -r ts-node/register 'test/**/*.ts'"
   },
   "devDependencies": {
     "@tsconfig/node20": "^20.1.2",
