@@ -1,6 +1,6 @@
 {
   "name": "@wooto/lol-replay-recorder",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "type": "module",
   "types": "dist/index.d.ts",
   "module": "dist/index.js",
@@ -8,10 +8,6 @@
   "license": "MIT",
   "author": "wooto",
   "description": "A library to record League of Legends replays",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/matsjla/league-connect.git"
-  },
   "files": [
     "dist"
   ],
