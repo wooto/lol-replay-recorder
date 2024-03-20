@@ -5,5 +5,11 @@
   "tabWidth": 2,
   "trailingComma": "all",
   "printWidth": 100,
-  "arrowParens": "avoid"
+  "arrowParens": "avoid",
+  "prettier/prettier": [
+    "error",
+    {
+      "endOfLine": "auto"
+    }
+  ]
 }
