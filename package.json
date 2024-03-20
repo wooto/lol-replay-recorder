@@ -44,5 +44,8 @@
     "type": "git",
     "url": "git+https://github.com/wooto/lol-replay-recorder.git"
   },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
   "type": "module"
 }
