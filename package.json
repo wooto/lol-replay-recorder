@@ -40,12 +40,5 @@
     "league-connect": "^6.0.0-rc12",
     "lodash": "^4.17.21"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/wooto/lol-replay-recorder.git"
-  },
-  "publishConfig": {
-    "registry": "https://npm.pkg.github.com"
-  },
   "type": "module"
 }
