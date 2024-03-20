@@ -42,6 +42,8 @@ export class LolRecorderService {
     params.startTime = params.startTime || 0;
     params.cameraMode = params.cameraMode || 'auto';
     params.windowMode = params.windowMode || false;
+    params.interfaceTimeline = params.interfaceTimeline || false;
+    params.interfaceScoreboard = params.interfaceScoreboard || false;
     console.log(await LeagueClient.getPatchVersion());
 
     const replay = new Replay();
@@ -66,8 +68,8 @@ export class LolRecorderService {
             z: -1350.0,
           },
         }),
-        ...(params.interfaceTimeline && { interfaceTimeline: true }),
-        ...(params.interfaceScoreboard && { interfaceScoreboard: true }),
+        interfaceTimeline: params.interfaceTimeline,
+        interfaceScoreboard: params.interfaceScoreboard,
       });
 
       await replay.postPlaybackProperties({
