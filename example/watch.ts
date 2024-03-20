@@ -1,5 +1,4 @@
 import { LolRecorderService } from '../src';
-// import { LeagueClient } from 'league-connect';
 
 
 console.log('Recording...');
