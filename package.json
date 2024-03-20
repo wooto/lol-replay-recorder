@@ -1,5 +1,5 @@
 {
-  "name": "lol replay recorder",
+  "name": "lol-replay-recorder",
   "version": "1.0.0",
   "main": "dist/src/index.js",
   "typings": "dist/src/index.d.ts",
