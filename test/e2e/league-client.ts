@@ -43,4 +43,17 @@ describe('league-client', () => {
     const patches = await leagueClient.getPatchVersion();
     expect(patches).to.not.null;
   });
+
+  it('should getSummonersByRiotId to be not null', async () => {
+    let leagueClient = new LeagueClient();
+    const summoners = await leagueClient.getSummonersByRiotId('riotId');
+    console.log(summoners);
+    expect(summoners).to.not.null;
+  });
+
+  it('should enableWindowMode to be not null', async () => {
+    let leagueClient = new LeagueClient();
+    const settings = await leagueClient.enableWindowMode();
+    expect(settings).to.not.null;
+  });
 });

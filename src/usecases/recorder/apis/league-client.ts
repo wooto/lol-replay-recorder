@@ -64,7 +64,7 @@ export class LeagueClient {
     return await this.waitForReplayDownloadToComplete(matchId);
   }
 
-  async waitForReplayDownloadToComplete(matchId: any) {
+  async waitForReplayDownloadToComplete(matchId: string) {
     const validDownloadStates = ['checking', 'downloading', 'watch'];
     const completed = 'watch';
     do {
@@ -90,7 +90,7 @@ export class LeagueClient {
     return await makeRequest('GET', `/lol-match-history/v1/games/${matchId}`);
   }
 
-  async getSummoners(riotId: any) {
+  async getSummonersByRiotId(riotId: string) {
     return makeRequest('GET', `/lol-summoner/v1/summoners?name=${riotId}`);
   }
 
