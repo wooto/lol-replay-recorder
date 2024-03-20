@@ -10,6 +10,7 @@ export type RecordParams = {
   startTime?: number;
   endTime?: number;
   cameraMode?: 'centerScreen' | 'auto';
+  windowMode?: boolean;
   interfaceTimeline?: boolean;
   interfaceScoreboard?: boolean;
 }
@@ -40,6 +41,7 @@ export class LolRecorderService {
   public async record(params: RecordParams): Promise<RecordResult> {
     params.startTime = params.startTime || 0;
     params.cameraMode = params.cameraMode || 'auto';
+    params.windowMode = params.windowMode || false;
     console.log(await LeagueClient.getPatchVersion());
 
     const replay = new Replay();
@@ -48,7 +50,9 @@ export class LolRecorderService {
       await replay.load(10, 10); // Add global vars
       await replay.init();
       await replay.waitForAssetsToLoad();
-      await LeagueClient.enableWindowMode();
+      if (params.windowMode) {
+        await LeagueClient.enableWindowMode();
+      }
       params.endTime = params.endTime || (await replay.getPlaybackProperties()).length;
 
       await replay.postRenderProperties({
