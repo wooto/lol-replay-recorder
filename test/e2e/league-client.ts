@@ -25,4 +25,10 @@ describe('league-client', () => {
     const settings = await leagueClient.getInputSettings();
     expect(settings).to.not.null;
   });
+
+  it('should getReplayConfig to be not null', async () => {
+    let leagueClient = new LeagueClient();
+    const config = await leagueClient.getReplayConfig();
+    expect(config).to.not.null;
+  });
 });
