@@ -1,4 +1,4 @@
-import { LeagueClient } from '../src/usecases/recorder/apis/league-client';
+import { LeagueClient } from '../../src/usecases/recorder/apis/league-client';
 import { expect } from 'chai';
 
 describe('league-client', () => {

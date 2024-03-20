@@ -9,7 +9,8 @@
     "lint-check": "eslint .",
     "start": "cross-env NODE_ENV=production node --loader ts-node/esm ./src/index.ts",
     "test": "cross-env NODE_ENV=test mocha --timeout 5000 --exit -r ts-node/register 'test/**/*.ts'",
-    "test:ci": "cross-env NODE_ENV=test mocha --timeout 5000 --exit --parallel -r ts-node/register 'test/**/*.ts'"
+    "test:e2e": "cross-env NODE_ENV=test mocha --timeout 5000 --exit  -r ts-node/register 'test/e2e/*.ts'",
+    "test:unit": "cross-env NODE_ENV=test mocha --timeout 5000 --exit --parallel -r ts-node/register 'test/unit/*.ts'"
   },
   "devDependencies": {
     "@tsconfig/node20": "^20.1.2",
