@@ -9,6 +9,20 @@ export class LeagueClientUx {
     this.patch = '';
   }
 
+  async waitForClientToBeReady() {
+    for (let i = 0; i < 30; i++) {
+      try {
+        await this.getPatchVersion();
+      } catch (e) {
+        console.log('Waiting for client to be ready...');
+        await new Promise(resolve => {
+          setTimeout(resolve, 1000);
+        });
+      }
+      console.log('Client is ready.');
+    }
+  }
+
   /// GAME SETTINGS/CONFIGURATION REQUESTS ///
   async getHighlightsFolderPath(): Promise<string> {
     return await makeRequest('GET', '/lol-highlights/v1/highlights-folder-path');

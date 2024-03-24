@@ -83,7 +83,7 @@ export class RiotGameClient {
     });
 
     if (options?.wait) {
-      for (let i = 0; i < 10; i++) {
+      for (let i = 0; i < 30; i++) {
         try {
           if (await this.isRunning()) {
             console.log('Riot Client Services is running.');
@@ -93,7 +93,7 @@ export class RiotGameClient {
           console.log('Riot Client Services is not running yet.');
         }
         await new Promise((resolve) => {
-          return setTimeout(resolve, 5000);
+          setTimeout(resolve, 1000);
         });
       }
     }
