@@ -85,12 +85,12 @@ describe('league-client', () => {
     expect(replay).to.not.null;
   });
 
-  it.only('should launchReplay to be not null', async () => {
-    let leagueClient = new LeagueClientUx();
-    const { puuid } = await getSummoner();
-    const matchHistory = await leagueClient.getMatchHistoryByPuuid(puuid, 0, 10);
-    console.dir(matchHistory, {depth: null});
-    const replay = await leagueClient.launchReplay(6994094218);
-    expect(replay).to.not.null;
-  });
+  // it.only('should launchReplay to be not null', async () => {
+  //   let leagueClient = new LeagueClientUx();
+  //   const { puuid } = await getSummoner();
+  //   const matchHistory = await leagueClient.getMatchHistoryByPuuid(puuid, 0, 10);
+  //   console.dir(matchHistory, {depth: null});
+  //   const replay = await leagueClient.launchReplay(6994094218);
+  //   expect(replay).to.not.null;
+  // });
 });
