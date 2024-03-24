@@ -1,10 +1,10 @@
 import CustomError from '../models/custom-error';
 import { makeRequest } from '../models/replay-request';
-import { sleepInSeconds } from '../../../utils/utils';
 import _ from 'lodash';
 import { Key, keyboard } from '@nut-tree/nut-js';
 import LeagueClientExecutable from './LeagueClientExecutable';
-import { ReplayType } from '../../../model/ReplayType';
+import { sleepInSeconds } from '../../utils/utils';
+import { ReplayType } from '../../model/ReplayType';
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 

@@ -6,7 +6,7 @@ import { readFile, writeFile } from 'fs/promises';
 import ini from 'ini';
 import path from 'node:path';
 import { getActiveWindow, getWindows, mouse } from '@nut-tree/nut-js';
-import { sleepInSeconds } from '../../../utils/utils';
+import { sleepInSeconds } from '../../utils/utils';
 
 const execAsync = promisify(exec);
 
