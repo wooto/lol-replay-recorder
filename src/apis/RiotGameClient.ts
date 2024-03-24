@@ -65,7 +65,9 @@ export class RiotGameClient {
   };
 
 
-  async startRiotClient(region: string = 'KR', options?: { wait: true }): Promise<void> {
+  async startRiotClient(region: string = 'KR', options?: { wait: boolean }): Promise<void> {
+    options = options || { wait: false };
+
     new Promise((resolve, reject) => {
       const process = spawn(rcsExePath,
         ['--launch-product=league_of_legends', `--launch-patchline=live`, `--region=${region.toUpperCase()}`],
