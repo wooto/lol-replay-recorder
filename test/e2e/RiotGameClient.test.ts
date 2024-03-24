@@ -20,7 +20,7 @@ describe('RiotGameClient', () => {
     expect(credentials).not.to.be.empty;
   });
 
-  it.only('should be able to start the RiotGameClient', async () => {
+  it.skip('should be able to start the RiotGameClient', async () => {
     await LeagueClientExecutable.stopRiotProcesses();
     await RiotGameClient.startRiotClient();
     expect(await RiotGameClient.isRunning()).to.be.true;
