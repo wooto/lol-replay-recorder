@@ -12,12 +12,12 @@ const execAsync = promisify(exec);
 class LeagueClientExecution {
   async stopRiotProcesses() {
     try{
-      await execAsync('taskkill /F /IM "RiotClientUx.exe" /T | Out-Null');
+      await execAsync('taskkill /F /IM "RiotClientUx.exe" /T');
     }catch (e) {
       // ignore
     }
     try{
-      await execAsync('taskkill /F /IM "LeagueClient.exe" /T | Out-Null');
+      await execAsync('taskkill /F /IM "LeagueClient.exe" /T');
     }catch (e) {
       // ignore
     }
