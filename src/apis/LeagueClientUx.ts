@@ -13,13 +13,14 @@ export class LeagueClientUx {
     for (let i = 0; i < 30; i++) {
       try {
         await this.getPatchVersion();
+        console.log('Client is ready.');
+        return true;
       } catch (e) {
         console.log('Waiting for client to be ready...');
         await new Promise(resolve => {
           setTimeout(resolve, 1000);
         });
       }
-      console.log('Client is ready.');
     }
   }
 
