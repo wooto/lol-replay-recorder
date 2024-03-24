@@ -1,3 +1,5 @@
-export { LolRecorderService } from './usecases/recorder/LoLRecorderService';
-export * as LeagueClient from './usecases/recorder/apis/league-client';
+export * as RiotGameClient from './apis/RiotGameClient';
+export * as LeagueClientUx from './apis/LeagueClientUx';
+export * as ReplayClient from './apis/ReplayClient';
+export * as LeagueClientExecutable from './apis/LeagueClientExecutable';
 

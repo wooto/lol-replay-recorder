@@ -1,10 +1,14 @@
-import CustomError from '../models/custom-error';
-import { makeRequest } from '../models/replay-request';
-import { sleepInSeconds } from '../../../utils/utils';
+import CustomError from '../model/CustomError';
+import { makeRequest } from '../model/RiotRequest';
+import _ from 'lodash';
+import { Key, keyboard } from '@nut-tree/nut-js';
+import LeagueClientExecutable from './LeagueClientExecutable';
+import { sleepInSeconds } from '../utils/utils';
+import { ReplayType } from '../model/ReplayType';
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
-class Replay {
+class ReplayClient {
   url: string;
 
   pid: any;
@@ -55,12 +59,7 @@ class Replay {
     return await makeRequest('POST', `${this.url}/replay/playback`, {}, options);
   }
 
-  public async getRecordingProperties(): Promise<{
-    endTime: number;
-    currentTime: number;
-    recording: boolean;
-    path: string;
-  }> {
+  public async getRecordingProperties(): Promise<ReplayType.RecordingProperties> {
     return await makeRequest('GET', `${this.url}/replay/recording`);
   }
 
@@ -68,7 +67,7 @@ class Replay {
     return await makeRequest('POST', `${this.url}/replay/recording`, {}, options);
   }
 
-  public async getRenderProperties() {
+  public async getRenderProperties(): Promise<ReplayType.RenderProperties> {
     return await makeRequest('GET', `${this.url}/replay/render`);
   }
 
@@ -121,6 +120,47 @@ class Replay {
       waitTime = recordingState.endTime - recordingState.currentTime;
     } while (recording && waitTime > 0);
   }
+
+  async getAllGameData(): Promise<ReplayType.GameData> {
+    return await makeRequest('GET', `${this.url}/liveclientdata/allgamedata`);
+  }
+
+  async getInGamePositionBySummonerName(summonerName: string): Promise<number> {
+    const data = await this.getAllGameData();
+    return _.findIndex(data.allPlayers, it => {
+      return it.summonerName === summonerName;
+    });
+  }
+
+  async focusBySummonerName(targetSummonerName: string) {
+    const position = await this.getInGamePositionBySummonerName(targetSummonerName);
+    const keyboardKey = [
+      Key.Num1,
+      Key.Num2,
+      Key.Num3,
+      Key.Num4,
+      Key.Num5,
+      Key.Q,
+      Key.W,
+      Key.E,
+      Key.R,
+      Key.T,
+    ][position];
+
+    for (let i = 0; i < 10; i++) {
+      await LeagueClientExecutable.focusClientWindow();
+      for (let j = 0; j < 10; j++) {
+        await keyboard.type(keyboardKey);
+        await sleepInSeconds(0.1);
+      }
+      await sleepInSeconds(8);
+      const { selectionName } = await this.getRenderProperties();
+      if (selectionName === targetSummonerName) {
+        break;
+      }
+    }
+  }
+
 }
 
-export default Replay;
+export default ReplayClient;

@@ -1,8 +1,8 @@
-import { makeRequest } from '../models/requests';
-import Summoner from '../models/summoner';
-import CustomError from '../models/custom-error';
+import { makeRequest } from '../model/LcuRequest';
+import Summoner from '../model/Summoner';
+import CustomError from '../model/CustomError';
 
-export class LeagueClient {
+export class LeagueClientUx {
   patch: string;
 
   constructor() {
@@ -145,4 +145,4 @@ export class LeagueClient {
   }
 }
 
-export default new LeagueClient();
+export default new LeagueClientUx();

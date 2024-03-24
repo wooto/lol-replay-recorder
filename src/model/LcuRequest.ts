@@ -1,5 +1,5 @@
 import { authenticate, createHttp1Request } from 'league-connect';
-import CustomError from './custom-error';
+import CustomError from './CustomError';
 
 async function makeRequest(method: any, url: any, body: any = {}, retries: any = 3): Promise<any> {
   const credentials = await authenticate();
