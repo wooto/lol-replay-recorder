@@ -1,6 +1,6 @@
-import { makeRequest } from '../models/LcuRequest';
-import Summoner from '../models/summoner';
-import CustomError from '../models/CustomError';
+import { makeRequest } from '../../model/LcuRequest';
+import Summoner from '../../model/summoner';
+import CustomError from '../../model/CustomError';
 
 export class LeagueClientUx {
   patch: string;

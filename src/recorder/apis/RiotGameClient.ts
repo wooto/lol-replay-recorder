@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import * as fs from 'fs';
-import { makeRequest } from '../models/RiotRequest';
+import { makeRequest } from '../../model/RiotRequest';
 
 const rcsExePath = `"C:\\Riot Games\\Riot Client\\RiotClientServices.exe"`;
 
