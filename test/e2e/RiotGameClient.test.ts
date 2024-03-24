@@ -21,5 +21,6 @@ describe('RiotGameClient', () => {
 
   it.skip('should be able to start the RiotGameClient', async () => {
     await RiotGameClient.startRiotClient();
+    expect(await RiotGameClient.isRunning()).to.be.true;
   });
 });
