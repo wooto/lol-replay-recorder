@@ -18,4 +18,8 @@ describe('RiotGameClient', () => {
     const credentials = await RiotGameClient.getLockfileCredentials(path);
     expect(credentials).not.to.be.empty;
   });
+
+  it.skip('should be able to start the RiotGameClient', async () => {
+    await RiotGameClient.startRiotClient();
+  });
 });
