@@ -38,6 +38,14 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
+      - name: Setup League Client
+        id: league-client
+        uses: magisteriis/setup-league-client@c44f92c2c531595011b5b845474187f160eaedd7
+        with:
+          username: ${{ secrets.LOL_USERNAME }}
+          password: ${{ secrets.LOL_PASSWORD }}
+          region: NA
+
       - name: Test
         run: npm run test:e2e
 
