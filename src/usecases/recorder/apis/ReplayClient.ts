@@ -4,7 +4,7 @@ import { sleepInSeconds } from '../../../utils/utils';
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
-class Replay {
+class ReplayClient {
   url: string;
 
   pid: any;
@@ -123,4 +123,4 @@ class Replay {
   }
 }
 
-export default Replay;
+export default ReplayClient;

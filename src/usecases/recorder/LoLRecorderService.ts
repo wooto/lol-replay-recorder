@@ -1,8 +1,8 @@
-import Replay from './apis/replay';
+import ReplayClient from './apis/ReplayClient';
 import { sleepInSeconds } from '../../utils/utils';
 import * as fs from 'fs';
 import path from 'node:path';
-import LeagueClient from './apis/league-client';
+import LeagueClient from './apis/LeagueClientUx';
 
 export type RecordParams = {
   gameId: number;
@@ -46,7 +46,7 @@ export class LolRecorderService {
     params.interfaceScoreboard = params.interfaceScoreboard || false;
     console.log(await LeagueClient.getPatchVersion());
 
-    const replay = new Replay();
+    const replay = new ReplayClient();
     try {
       await LeagueClient.launchReplay(params.gameId);
       await replay.load(10, 10); // Add global vars

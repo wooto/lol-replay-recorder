@@ -2,7 +2,7 @@ import { makeRequest } from '../models/requests';
 import Summoner from '../models/summoner';
 import CustomError from '../models/custom-error';
 
-export class LeagueClient {
+export class LeagueClientUx {
   patch: string;
 
   constructor() {
@@ -145,4 +145,4 @@ export class LeagueClient {
   }
 }
 
-export default new LeagueClient();
+export default new LeagueClientUx();
