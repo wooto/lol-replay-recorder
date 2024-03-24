@@ -26,8 +26,6 @@ class LeagueClientExecution {
   }
 
   private async findWindowsInstalled(): Promise<string[]> {
-    // $RCS_LOCKFILE = "$env:LOCALAPPDATA\Riot Games\Riot Client\Config\lockfile"
-
     const paths = ['C:\\Riot Games\\League of Legends'];
     for (const path of paths) {
       if (existsSync(path)) {
