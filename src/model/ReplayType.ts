@@ -103,4 +103,20 @@ export namespace ReplayType {
     mapNumber: number;
     mapTerrain: string;
   };
+
+  export type RecordingProperties = {
+    codec: string;
+    currentTime: number;
+    endTime: number;
+    enforceFrameRate: boolean;
+    framesPerSecond: number;
+    height: number;
+    lossless: boolean;
+    path: string;
+    recording: boolean;
+    replaySpeed: number;
+    startTime: number;
+    width: number;
+  }
+
 }
