@@ -65,7 +65,7 @@ export class LeagueClientExecution {
       const fileContent = await readFile(path, { encoding: 'utf-8' });
       const config = ini.parse(fileContent);
       const value = config?.General?.EnableReplayApi;
-      return value?.toString().toLowerCase() === 'true' || value === '1' || value === 1;
+      return value?.toString().toLowerCase() === 'true' || value === '1' || value === 1 || value === true;
     } catch (error) {
       console.error(`Error reading config file: ${error}`);
       return false;
