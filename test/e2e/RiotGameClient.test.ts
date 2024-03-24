@@ -9,6 +9,7 @@ describe('RiotGameClient', () => {
 
   it('should be able to find the RiotGameClient lockfile', async () => {
     const path = await RiotGameClient.getLockfilePath();
+    console.log(path);
     expect(path).not.to.be.empty;
   });
 

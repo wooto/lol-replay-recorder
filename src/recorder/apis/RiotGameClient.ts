@@ -1,19 +1,23 @@
-import { readFileSync } from 'node:fs';
-import LeagueClientExecutable from './LeagueClientExecutable';
+import { existsSync, readFileSync } from 'node:fs';
 
 class RiotGameClient {
   async isRunning() {
     return true;
   }
 
-  async getClientPath(): Promise<string> {
-    const path = await LeagueClientExecutable.getInstalledPaths()[0];
-    return `${path}\\League of Legends\\LeagueClient.exe`;
+  async getClientPath(): Promise<string[]> {
+    const paths = ['C:\\Riot Games\\Riot Client'];
+    for (const path of paths) {
+      if (existsSync(path)) {
+        return [path];
+      }
+    }
+    return [];
   }
 
   async getLockfilePath(): Promise<string> {
     const path = await this.getClientPath();
-    return `${path}\\lockfile`;
+    return `${path}\\Config\\lockfile`;
   }
 
   async getLockfileCredentials(path: string): Promise<{ port: string; password: string }> {
