@@ -16,14 +16,13 @@ describe('LeagueClientExecutable', () => {
     const paths = await new LeagueClientExecution().getConfigFilePaths();
     await new LeagueClientExecution().setGameEnabled(paths[0], false);
     const enabled = await new LeagueClientExecution().isGameEnabled(paths[0]);
-    expect(enabled).to.be.false;
+    expect(enabled).to.be.eql(false);
   });
 
   it('should be able to enable the LeagueClient config file, set true', async () => {
-    const paths = await new LeagueClientExecution().getConfigFilePaths();
-    await new LeagueClientExecution().setGameEnabled(paths[0], true);
-    const enabled = await new LeagueClientExecution().isGameEnabled(paths[0]);
-    expect(enabled).to.be.true;
+    const [path] = await new LeagueClientExecution().getConfigFilePaths();
+    await new LeagueClientExecution().setGameEnabled(path, true);
+    const enabled = await new LeagueClientExecution().isGameEnabled(path);
+    expect(enabled).to.be.eql(true);
   });
-
 });
