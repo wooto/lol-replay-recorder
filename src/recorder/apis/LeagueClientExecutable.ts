@@ -11,8 +11,8 @@ const execAsync = promisify(exec);
 
 class LeagueClientExecution {
   async stopRiotProcesses() {
-    await execAsync('taskkill /F /IM "RiotClientUx.exe" /T');
-    await execAsync('taskkill /F /IM "LeagueClient.exe" /T');
+    await execAsync('taskkill /F /IM "RiotClientUx.exe" /T | Out-Null');
+    await execAsync('taskkill /F /IM "LeagueClient.exe" /T | Out-Null');
     console.log('Riot and League processes have been stopped.');
   };
 
