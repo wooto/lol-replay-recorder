@@ -1,4 +1,4 @@
-import LeagueClientExecutable from '../../src/apis/LeagueClientExecutable';
+import LeagueClientExecutable from '../../src/apis/LeagueClientExecution';
 import { expect } from 'chai';
 
 describe('LeagueClientExecutable', () => {

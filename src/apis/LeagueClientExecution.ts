@@ -9,7 +9,7 @@ import { sleepInSeconds } from '../utils/utils';
 
 const execAsync = promisify(exec);
 
-class LeagueClientExecution {
+export class LeagueClientExecution {
   async stopRiotProcesses() {
     try{
       await execAsync('taskkill /F /IM "RiotClientUx.exe" /T');
@@ -119,5 +119,3 @@ class LeagueClientExecution {
     throw new Error('Cannot find League of Legends window');
   }
 }
-
-export default new LeagueClientExecution();

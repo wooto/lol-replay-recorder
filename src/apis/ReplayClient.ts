@@ -2,13 +2,13 @@ import CustomError from '../model/CustomError';
 import { makeRequest } from '../model/RiotRequest';
 import _ from 'lodash';
 import { Key, keyboard } from '@nut-tree/nut-js';
-import LeagueClientExecutable from './LeagueClientExecutable';
 import { sleepInSeconds } from '../utils/utils';
 import { ReplayType } from '../model/ReplayType';
+import { LeagueClientExecution } from './LeagueClientExecution';
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
-class ReplayClient {
+export class ReplayClient {
   url: string;
 
   pid: any;
@@ -147,8 +147,9 @@ class ReplayClient {
       Key.T,
     ][position];
 
+    const execution = await new LeagueClientExecution();
     for (let i = 0; i < 10; i++) {
-      await LeagueClientExecutable.focusClientWindow();
+      await execution.focusClientWindow();
       for (let j = 0; j < 10; j++) {
         await keyboard.type(keyboardKey);
         await sleepInSeconds(0.1);
@@ -162,5 +163,3 @@ class ReplayClient {
   }
 
 }
-
-export default ReplayClient;

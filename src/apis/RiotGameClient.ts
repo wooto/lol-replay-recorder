@@ -32,7 +32,7 @@ async function invokeRiotRequest(lockfile: string, path: string, method: string 
   return response.json();
 }
 
-class RiotGameClient {
+export class RiotGameClient {
   async isRunning() {
     return invokeRiotRequest(
       await this.getLockfilePath(),
@@ -85,4 +85,3 @@ class RiotGameClient {
 }
 
 
-export default new RiotGameClient();

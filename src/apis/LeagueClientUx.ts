@@ -2,7 +2,7 @@ import { makeRequest } from '../model/LcuRequest';
 import Summoner from '../model/Summoner';
 import CustomError from '../model/CustomError';
 
-class LeagueClientUx {
+export class LeagueClientUx {
   patch: string;
 
   constructor() {
@@ -144,5 +144,3 @@ class LeagueClientUx {
     );
   }
 }
-
-export default new LeagueClientUx();

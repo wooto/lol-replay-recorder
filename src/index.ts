@@ -1,11 +1,4 @@
-import RiotGameClient from './apis/RiotGameClient';
-import LeagueClientUx from './apis/LeagueClientUx';
-import ReplayClient from './apis/ReplayClient';
-import LeagueClientExecutable from './apis/LeagueClientExecutable';
-
-export default {
-  RiotGameClient,
-  LeagueClientUx,
-  ReplayClient,
-  LeagueClientExecutable,
-};
+export { RiotGameClient } from './apis/RiotGameClient';
+export { LeagueClientUx } from './apis/LeagueClientUx';
+export { ReplayClient } from './apis/ReplayClient';
+export { LeagueClientExecution } from './apis/LeagueClientExecution';
