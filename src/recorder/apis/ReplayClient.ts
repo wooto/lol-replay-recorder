@@ -5,7 +5,6 @@ import { Key, keyboard } from '@nut-tree/nut-js';
 import LeagueClientExecutable from './LeagueClientExecutable';
 import { sleepInSeconds } from '../../utils/utils';
 import { ReplayType } from '../../model/ReplayType';
-import RecordingProperties = ReplayType.RecordingProperties;
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
@@ -60,7 +59,7 @@ class ReplayClient {
     return await makeRequest('POST', `${this.url}/replay/playback`, {}, options);
   }
 
-  public async getRecordingProperties(): Promise<RecordingProperties> {
+  public async getRecordingProperties(): Promise<ReplayType.RecordingProperties> {
     return await makeRequest('GET', `${this.url}/replay/recording`);
   }
 
