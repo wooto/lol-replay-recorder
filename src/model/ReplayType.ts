@@ -118,43 +118,33 @@ export namespace ReplayType {
     startTime: number;
     width: number;
   }
-
   type Vector3 = {
     x: number;
     y: number;
     z: number;
   }
 
-  type Color = {
+  type ColorRGBA = {
     r: number;
     g: number;
     b: number;
     a: number;
   }
 
-  type CameraSettings = {
+  export type RenderProperties =  {
+    banners: boolean;
     cameraAttached: boolean;
     cameraLookSpeed: number;
     cameraMode: string;
     cameraMoveSpeed: number;
     cameraPosition: Vector3;
     cameraRotation: Vector3;
-  }
-
-  type FogSettings = {
-    depthFogColor: Color;
+    characters: boolean;
+    depthFogColor: ColorRGBA;
     depthFogEnabled: boolean;
     depthFogEnd: number;
     depthFogIntensity: number;
     depthFogStart: number;
-    heightFogColor: Color;
-    heightFogEnabled: boolean;
-    heightFogEnd: number;
-    heightFogIntensity: number;
-    heightFogStart: number;
-  }
-
-  type DepthOfFieldSettings = {
     depthOfFieldCircle: number;
     depthOfFieldDebug: boolean;
     depthOfFieldEnabled: boolean;
@@ -162,9 +152,21 @@ export namespace ReplayType {
     depthOfFieldMid: number;
     depthOfFieldNear: number;
     depthOfFieldWidth: number;
-  }
-
-  type InterfaceSettings = {
+    environment: boolean;
+    farClip: number;
+    fieldOfView: number;
+    floatingText: boolean;
+    fogOfWar: boolean;
+    healthBarChampions: boolean;
+    healthBarMinions: boolean;
+    healthBarPets: boolean;
+    healthBarStructures: boolean;
+    healthBarWards: boolean;
+    heightFogColor: ColorRGBA;
+    heightFogEnabled: boolean;
+    heightFogEnd: number;
+    heightFogIntensity: number;
+    heightFogStart: number;
     interfaceAll: boolean;
     interfaceAnnounce: boolean;
     interfaceChat: boolean;
@@ -172,27 +174,12 @@ export namespace ReplayType {
     interfaceKillCallouts: boolean;
     interfaceMinimap: boolean;
     interfaceNeutralTimers: boolean;
-    interfaceQuests: null | boolean; // Assuming it can be null or a boolean
+    interfaceQuests: null | boolean; // Assuming it can be either null or boolean
     interfaceReplay: boolean;
     interfaceScore: boolean;
     interfaceScoreboard: boolean;
     interfaceTarget: boolean;
     interfaceTimeline: boolean;
-  }
-
-  type RenderSettings = {
-    banners: boolean;
-    characters: boolean;
-    environment: boolean;
-    farClip: number;
-    fieldOfView: number;
-    floatingText: true;
-    fogOfWar: boolean;
-    healthBarChampions: boolean;
-    healthBarMinions: boolean;
-    healthBarPets: boolean;
-    healthBarStructures: boolean;
-    healthBarWards: boolean;
     navGridOffset: number;
     nearClip: number;
     outlineHover: boolean;
@@ -205,14 +192,6 @@ export namespace ReplayType {
     skyboxRadius: number;
     skyboxRotation: number;
     sunDirection: Vector3;
-  }
-
-  export type RenderProperties = {
-    cameraSettings: CameraSettings;
-    fogSettings: FogSettings;
-    depthOfFieldSettings: DepthOfFieldSettings;
-    interfaceSettings: InterfaceSettings;
-    renderSettings: RenderSettings;
   }
 
 
