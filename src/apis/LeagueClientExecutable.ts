@@ -24,7 +24,7 @@ class LeagueClientExecution {
     console.log('Riot and League processes have been stopped.');
   };
 
-  private async findWindowsInstalled(): Promise<string[]> {
+  async findWindowsInstalled(): Promise<string[]> {
     const paths = ['C:\\Riot Games\\League of Legends'];
     for (const path of paths) {
       if (existsSync(path)) {
