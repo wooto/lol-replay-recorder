@@ -11,4 +11,10 @@ describe('RiotGameClient', () => {
     const path = await RiotGameClient.getLockfilePath();
     expect(path).not.to.be.empty;
   });
+
+  it('should be able to find the RiotGameClient lockfile credentials', async () => {
+    const path = await RiotGameClient.getLockfilePath();
+    const credentials = await RiotGameClient.getLockfileCredentials(path);
+    expect(credentials).not.to.be.empty;
+  });
 });
