@@ -78,7 +78,7 @@ export class LeagueClientExecution {
       let config = ini.parse(fileContent);
 
       config.General = config.General || {};
-      config.General.EnableReplayApi = enabled ? '1' : '0';
+      config.General.EnableReplayApi = enabled ? 1 : 0;
 
       const newFileContent = ini.stringify(config);
       await writeFile(path, newFileContent, { encoding: 'utf-8' });
