@@ -90,7 +90,6 @@ describe('league-client', () => {
     const { puuid } = await getSummoner();
     const matchHistory = await leagueClient.getMatchHistoryByPuuid(puuid, 0, 10);
     console.dir(matchHistory, {depth: null});
-    const match = matchHistory[0];
     const replay = await leagueClient.launchReplay(6994094218);
     expect(replay).to.not.null;
   });
