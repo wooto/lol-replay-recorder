@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { LeagueClientUx } from '../../src/recorder/apis/LeagueClientUx';
+import { LeagueClientUx } from '../../src/apis/LeagueClientUx';
 
 describe('league-client', () => {
   const getSummoner = async () => {

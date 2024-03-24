@@ -1,6 +1,6 @@
 import { expect } from 'chai';
-import RiotGameClient from '../../src/recorder/apis/RiotGameClient';
-import LeagueClientExecutable from '../../src/recorder/apis/LeagueClientExecutable';
+import RiotGameClient from '../../src/apis/RiotGameClient';
+import LeagueClientExecutable from '../../src/apis/LeagueClientExecutable';
 
 describe('RiotGameClient', () => {
   it('should be able to find the RiotGameClient executable', async () => {
