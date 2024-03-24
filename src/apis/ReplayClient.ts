@@ -135,19 +135,11 @@ export class ReplayClient {
   async focusBySummonerName(targetSummonerName: string) {
     const position = await this.getInGamePositionBySummonerName(targetSummonerName);
     const keyboardKey = [
-      Key.Num1,
-      Key.Num2,
-      Key.Num3,
-      Key.Num4,
-      Key.Num5,
-      Key.Q,
-      Key.W,
-      Key.E,
-      Key.R,
-      Key.T,
+      ...[Key.Num1, Key.Num2, Key.Num3, Key.Num4, Key.Num5],
+      ...[Key.Q, Key.W, Key.E, Key.R, Key.T],
     ][position];
 
-    const execution = await new LeagueClientExecution();
+    const execution = new LeagueClientExecution();
     for (let i = 0; i < 10; i++) {
       await execution.focusClientWindow();
       for (let j = 0; j < 10; j++) {
