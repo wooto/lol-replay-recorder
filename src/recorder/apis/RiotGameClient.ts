@@ -6,7 +6,7 @@ import { makeRequest } from '../models/riot-request';
 
 const rcsExePath = `"C:\\Riot Games\\Riot Client\\RiotClientServices.exe"`;
 
-async function invokeRiotRequest(lockfile: string, path: string, method: string = 'GET', body: any = null): Promise<any> {
+async function invokeRiotRequest(lockfile: string, path: string, method: string = 'GET', body: any = null, retry: number = 3): Promise<any> {
   const lockContent = fs.readFileSync(lockfile, { encoding: 'utf8' }).split(':');
   const port = lockContent[2];
   const password = lockContent[3];
@@ -22,6 +22,7 @@ async function invokeRiotRequest(lockfile: string, path: string, method: string 
       'Content-Type': 'application/json',
     },
     body,
+    retry,
   );
 
   if (!response.ok) {
@@ -37,6 +38,8 @@ class RiotGameClient {
       await this.getLockfilePath(),
       '/lol-patch/v1/products/league_of_legends/state',
       'POST',
+      {},
+      10,
     );
   }
 
