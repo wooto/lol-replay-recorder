@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
 
 class RiotGameClient {
   async isRunning() {
@@ -16,8 +17,8 @@ class RiotGameClient {
   }
 
   async getLockfilePath(): Promise<string> {
-    const path = await this.getClientPath();
-    return `${path}\\Config\\lockfile`;
+    const localAppData = process.env.LOCALAPPDATA;
+    return path.join(localAppData, 'Riot Games', 'Riot Client', 'Config', 'lockfile');
   }
 
   async getLockfileCredentials(path: string): Promise<{ port: string; password: string }> {
