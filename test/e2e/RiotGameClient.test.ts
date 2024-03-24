@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 import RiotGameClient from '../../src/recorder/apis/RiotGameClient';
+import LeagueClientExecutable from '../../src/recorder/apis/LeagueClientExecutable';
 
 describe('RiotGameClient', () => {
   it('should be able to find the RiotGameClient executable', async () => {
@@ -20,7 +21,7 @@ describe('RiotGameClient', () => {
   });
 
   it.only('should be able to start the RiotGameClient', async () => {
-    await RiotGameClient.startRiotClient();
+    await LeagueClientExecutable.stopRiotProcesses();
     await RiotGameClient.startRiotClient();
     expect(await RiotGameClient.isRunning()).to.be.true;
   });
