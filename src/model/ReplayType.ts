@@ -119,4 +119,101 @@ export namespace ReplayType {
     width: number;
   }
 
+  type Vector3 = {
+    x: number;
+    y: number;
+    z: number;
+  }
+
+  type Color = {
+    r: number;
+    g: number;
+    b: number;
+    a: number;
+  }
+
+  type CameraSettings = {
+    cameraAttached: boolean;
+    cameraLookSpeed: number;
+    cameraMode: string;
+    cameraMoveSpeed: number;
+    cameraPosition: Vector3;
+    cameraRotation: Vector3;
+  }
+
+  type FogSettings = {
+    depthFogColor: Color;
+    depthFogEnabled: boolean;
+    depthFogEnd: number;
+    depthFogIntensity: number;
+    depthFogStart: number;
+    heightFogColor: Color;
+    heightFogEnabled: boolean;
+    heightFogEnd: number;
+    heightFogIntensity: number;
+    heightFogStart: number;
+  }
+
+  type DepthOfFieldSettings = {
+    depthOfFieldCircle: number;
+    depthOfFieldDebug: boolean;
+    depthOfFieldEnabled: boolean;
+    depthOfFieldFar: number;
+    depthOfFieldMid: number;
+    depthOfFieldNear: number;
+    depthOfFieldWidth: number;
+  }
+
+  type InterfaceSettings = {
+    interfaceAll: boolean;
+    interfaceAnnounce: boolean;
+    interfaceChat: boolean;
+    interfaceFrames: boolean;
+    interfaceKillCallouts: boolean;
+    interfaceMinimap: boolean;
+    interfaceNeutralTimers: boolean;
+    interfaceQuests: null | boolean; // Assuming it can be null or a boolean
+    interfaceReplay: boolean;
+    interfaceScore: boolean;
+    interfaceScoreboard: boolean;
+    interfaceTarget: boolean;
+    interfaceTimeline: boolean;
+  }
+
+  type RenderSettings = {
+    banners: boolean;
+    characters: boolean;
+    environment: boolean;
+    farClip: number;
+    fieldOfView: number;
+    floatingText: true;
+    fogOfWar: boolean;
+    healthBarChampions: boolean;
+    healthBarMinions: boolean;
+    healthBarPets: boolean;
+    healthBarStructures: boolean;
+    healthBarWards: boolean;
+    navGridOffset: number;
+    nearClip: number;
+    outlineHover: boolean;
+    outlineSelect: boolean;
+    particles: boolean;
+    selectionName: string;
+    selectionOffset: Vector3;
+    skyboxOffset: number;
+    skyboxPath: string;
+    skyboxRadius: number;
+    skyboxRotation: number;
+    sunDirection: Vector3;
+  }
+
+  export type RenderProperties = {
+    cameraSettings: CameraSettings;
+    fogSettings: FogSettings;
+    depthOfFieldSettings: DepthOfFieldSettings;
+    interfaceSettings: InterfaceSettings;
+    renderSettings: RenderSettings;
+  }
+
+
 }

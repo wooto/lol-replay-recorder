@@ -67,7 +67,7 @@ class ReplayClient {
     return await makeRequest('POST', `${this.url}/replay/recording`, {}, options);
   }
 
-  public async getRenderProperties() {
+  public async getRenderProperties(): Promise<ReplayType.RenderProperties> {
     return await makeRequest('GET', `${this.url}/replay/render`);
   }
 
