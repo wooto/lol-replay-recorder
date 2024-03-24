@@ -65,8 +65,8 @@ export class RiotGameClient {
   };
 
 
-  async startRiotClient(region: string = 'KR'): Promise<void> {
-    return new Promise((resolve, reject) => {
+  async startRiotClient(region: string = 'KR', options?: { wait: true }): Promise<void> {
+    new Promise((resolve, reject) => {
       const process = spawn(rcsExePath,
         ['--launch-product=league_of_legends', `--launch-patchline=live`, `--region=${region.toUpperCase()}`],
         { shell: true });
@@ -78,9 +78,25 @@ export class RiotGameClient {
 
       process.on('close', (code) => {
         console.log(`Riot Client Services process exited with code ${code}`);
-        resolve();
+        resolve(null);
       });
     });
+
+    if (options?.wait) {
+      for (let i = 0; i < 10; i++) {
+        try {
+          if (await this.isRunning()) {
+            console.log('Riot Client Services is running.');
+            return;
+          }
+        } catch (e) {
+          console.log('Riot Client Services is not running yet.');
+        }
+        await new Promise((resolve) => {
+          return setTimeout(resolve, 5000);
+        });
+      }
+    }
   };
 }
 
