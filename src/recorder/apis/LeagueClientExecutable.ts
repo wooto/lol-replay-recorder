@@ -1,7 +1,6 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { existsSync } from 'node:fs';
-import { platform } from 'node:os';
 import { readFile, writeFile } from 'fs/promises';
 import ini from 'ini';
 import path from 'node:path';
@@ -11,20 +10,6 @@ import { sleepInSeconds } from '../../utils/utils';
 const execAsync = promisify(exec);
 
 class LeagueClientExecution {
-  private async findMacInstalled(): Promise<string[]> {
-    const query = 'kMDItemCFBundleIdentifier==com.riotgames.leagueoflegends';
-    try {
-      const { stdout } = await execAsync(`mdfind ${query}`);
-      const paths = stdout.split('\n').filter(line => {
-        return line;
-      });
-      return paths;
-    } catch (error) {
-      console.error(`Error executing mdfind: ${error}`);
-      throw error;
-    }
-  }
-
   private async findWindowsInstalled(): Promise<string[]> {
     const paths = ['C:\\Riot Games\\League of Legends'];
     for (const path of paths) {
@@ -36,12 +21,7 @@ class LeagueClientExecution {
   }
 
   async getInstalledPaths(): Promise<string[]> {
-    const isWindows = process.platform === 'win32';
-    if (isWindows) {
-      return this.findWindowsInstalled();
-    } else {
-      return this.findMacInstalled();
-    }
+    return this.findWindowsInstalled();
   }
 
   async getConfigFilePaths(): Promise<string[]> {
@@ -53,9 +33,6 @@ class LeagueClientExecution {
 
   getConfigFilePath(initialPath: string): string | null {
     let lolPath = path.resolve(initialPath);
-    if (platform() === 'darwin') {
-      lolPath = path.join(lolPath, 'Contents', 'LoL');
-    }
     let configPaths = [
       path.join(lolPath, 'DATA', 'CFG', 'game.cfg'),
       path.join(lolPath, 'Config', 'game.cfg'),
