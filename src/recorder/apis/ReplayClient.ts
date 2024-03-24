@@ -1,5 +1,5 @@
 import CustomError from '../models/custom-error';
-import { makeRequest } from '../models/replay-request';
+import { makeRequest } from '../models/riot-request';
 import _ from 'lodash';
 import { Key, keyboard } from '@nut-tree/nut-js';
 import LeagueClientExecutable from './LeagueClientExecutable';

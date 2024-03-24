@@ -1,4 +1,4 @@
-import { makeRequest } from '../models/requests';
+import { makeRequest } from '../models/lcu-requests';
 import Summoner from '../models/summoner';
 import CustomError from '../models/custom-error';
 
