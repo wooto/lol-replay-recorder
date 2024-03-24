@@ -19,6 +19,7 @@ jobs:
         os: [windows-latest]
         version: [20.x]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
