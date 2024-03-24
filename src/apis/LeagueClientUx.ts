@@ -1,5 +1,5 @@
 import { makeRequest } from '../model/LcuRequest';
-import Summoner from '../model/summoner';
+import Summoner from '../model/Summoner';
 import CustomError from '../model/CustomError';
 
 export class LeagueClientUx {
