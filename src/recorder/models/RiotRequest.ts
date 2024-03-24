@@ -1,6 +1,6 @@
 import Bottleneck from 'bottleneck';
 import https from 'https';
-import CustomError from './custom-error';
+import CustomError from './CustomError';
 
 const MAX_REQUESTS_PER_SECOND = 1;
 
