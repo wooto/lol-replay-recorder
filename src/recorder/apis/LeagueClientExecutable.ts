@@ -10,6 +10,12 @@ import { sleepInSeconds } from '../../utils/utils';
 const execAsync = promisify(exec);
 
 class LeagueClientExecution {
+  async stopRiotProcesses() {
+    await execAsync('taskkill /F /IM "RiotClientUx.exe" /T');
+    await execAsync('taskkill /F /IM "LeagueClient.exe" /T');
+    console.log('Riot and League processes have been stopped.');
+  };
+
   private async findWindowsInstalled(): Promise<string[]> {
     const paths = ['C:\\Riot Games\\League of Legends'];
     for (const path of paths) {
