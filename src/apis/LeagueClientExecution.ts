@@ -107,7 +107,6 @@ export class LeagueClientExecution {
             },
           ]);
           await mouse.leftClick();
-          await mouse.leftClick();
           if ((await (await getActiveWindow()).getTitle()) === (await window.getTitle())) {
             return;
           }
