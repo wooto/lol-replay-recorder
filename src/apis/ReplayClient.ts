@@ -142,11 +142,11 @@ export class ReplayClient {
     const execution = new LeagueClientExecution();
     for (let i = 0; i < 10; i++) {
       await execution.focusClientWindow();
-      for (let j = 0; j < 10; j++) {
+      for (let j = 0; j < 50; j++) {
         await keyboard.type(keyboardKey);
-        await sleepInSeconds(0.1);
+        await sleepInSeconds(0.2);
       }
-      await sleepInSeconds(8);
+      await sleepInSeconds(10);
       const { selectionName } = await this.getRenderProperties();
       if (selectionName === targetSummonerName) {
         break;
