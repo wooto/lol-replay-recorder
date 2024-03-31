@@ -127,10 +127,32 @@ export class ReplayClient {
 
   async getInGamePositionBySummonerName(summonerName: string): Promise<number> {
     const data = await this.getAllGameData();
-    return _.findIndex(data.allPlayers, it => {
+    const orderTeam = data.allPlayers.filter(it => {
+      return it.team === 'ORDER';
+    });
+    const chaosTeam = data.allPlayers.filter(it => {
+      return it.team === 'CHAOS';
+    });
+
+    const orderIndex = _.findIndex(orderTeam, it => {
       return it.summonerName === summonerName;
     });
+
+    if (orderIndex !== -1) {
+      return orderIndex;
+    }
+
+    const chaosIndex = _.findIndex(chaosTeam, it => {
+      return it.summonerName === summonerName;
+    });
+
+    if (chaosIndex !== -1) {
+      return chaosIndex + 5;
+    }
+
+    throw new CustomError('Summoner not found in game');
   }
+
 
   async focusBySummonerName(targetSummonerName: string) {
     const position = await this.getInGamePositionBySummonerName(targetSummonerName);
