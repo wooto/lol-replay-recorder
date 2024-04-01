@@ -43,6 +43,30 @@ export class RiotGameClient {
     );
   }
 
+  async login(username: string, password: string) {
+    return invokeRiotRequest(
+      await this.getLockfilePath(),
+      '/rso-auth/v1/authorization',
+      'POST',
+      {
+        username,
+        password,
+      },
+      5,
+    );
+  }
+
+  //'/lol-patch/v1/products/league_of_legends/state'
+  async getState(): Promise<{ action: string }> {
+    return invokeRiotRequest(
+      await this.getLockfilePath(),
+      '/lol-patch/v1/products/league_of_legends/state',
+      'GET',
+      null,
+      10,
+    );
+  }
+
   async getClientPath(): Promise<string[]> {
     const paths = ['C:\\Riot Games\\Riot Client'];
     for (const path of paths) {
