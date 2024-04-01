@@ -1,16 +1,25 @@
 import { authenticate, createHttp1Request } from 'league-connect';
 import CustomError from './CustomError';
+import Bottleneck from 'bottleneck';
+
+const MAX_REQUESTS_PER_SECOND = 10;
+
+const limiter = new Bottleneck({
+  minTime: 1000 / MAX_REQUESTS_PER_SECOND,
+});
 
 async function makeRequest(method: any, url: any, body: any = {}, retries: any = 3): Promise<any> {
   const credentials = await authenticate();
-  const response = await createHttp1Request(
-    {
-      method,
-      url,
-      body,
-    },
-    credentials,
-  );
+  const response = await limiter.schedule(() => {
+    return createHttp1Request(
+      {
+        method,
+        url,
+        body,
+      },
+      credentials,
+    );
+  });
 
   if (!response.ok) {
     await parseResponseForErrors(response, retries - 1);
