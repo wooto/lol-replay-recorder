@@ -62,7 +62,7 @@ export class RiotGameClient {
         await sleepInSeconds(2);
         continue;
       }
-    } 
+    }
   }
 
   async getState(): Promise<{ action: string }> {
@@ -97,9 +97,7 @@ export class RiotGameClient {
   };
 
 
-  async startRiotClient(region: string = 'KR', options?: { wait: boolean }): Promise<void> {
-    options = options || { wait: false };
-
+  async startRiotClient(region: string = 'KR'): Promise<void> {
     await new Promise((resolve, reject) => {
       const process = spawn(rcsExePath,
         ['--launch-product=league_of_legends', `--launch-patchline=live`, `--region=${region.toUpperCase()}`],
