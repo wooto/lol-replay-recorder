@@ -1,11 +1,9 @@
-import { exec, spawn } from 'node:child_process';
-import { promisify } from 'node:util';
+import { spawn } from 'node:child_process';
 import CustomError from '../model/CustomError';
 import { makeRequest } from '../model/LcuRequest';
 import Summoner from '../model/Summoner';
 import { sleepInSeconds } from '../utils/utils';
 
-const execAsync = promisify(exec);
 const rcuExePath = `"C:\\Riot Games\\League of Legends\\LeagueClient.exe"`;
 
 export class LeagueClientUx {
