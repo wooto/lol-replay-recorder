@@ -3,6 +3,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import * as fs from 'fs';
 import { makeRequest } from '../model/RiotRequest';
+import { sleepInSeconds } from '../utils/utils';
 
 const rcsExePath = `"C:\\Riot Games\\Riot Client\\RiotClientServices.exe"`;
 
@@ -37,33 +38,40 @@ export class RiotGameClient {
     return invokeRiotRequest(
       await this.getLockfilePath(),
       '/lol-patch/v1/products/league_of_legends/state',
-      'POST',
-      {},
+      'GET',
+      null,
       10,
     );
   }
 
   async login(username: string, password: string) {
-    return invokeRiotRequest(
-      await this.getLockfilePath(),
-      '/rso-auth/v1/authorization',
-      'POST',
-      {
-        username,
-        password,
-      },
-      5,
-    );
+    for(let i = 0; i < 20; i++) {
+      try {
+        return await invokeRiotRequest(
+          await this.getLockfilePath(),
+          '/rso-auth/v1/authorization/gas',
+          'POST',
+          {
+            username,
+            password,
+          },
+          1,
+        );
+      } catch(e) {
+        console.log(e);
+        await sleepInSeconds(2);
+        continue;
+      }
+    } 
   }
 
-  //'/lol-patch/v1/products/league_of_legends/state'
   async getState(): Promise<{ action: string }> {
     return invokeRiotRequest(
       await this.getLockfilePath(),
       '/lol-patch/v1/products/league_of_legends/state',
       'GET',
       null,
-      10,
+      60,
     );
   }
 
@@ -92,7 +100,7 @@ export class RiotGameClient {
   async startRiotClient(region: string = 'KR', options?: { wait: boolean }): Promise<void> {
     options = options || { wait: false };
 
-    new Promise((resolve, reject) => {
+    await new Promise((resolve, reject) => {
       const process = spawn(rcsExePath,
         ['--launch-product=league_of_legends', `--launch-patchline=live`, `--region=${region.toUpperCase()}`],
         { shell: true });
@@ -108,8 +116,11 @@ export class RiotGameClient {
       });
     });
 
-    if (options?.wait) {
-      for (let i = 0; i < 30; i++) {
+    await sleepInSeconds(5);
+  };
+
+  async waitToBeReady() {
+      for (let i = 0; i < 60; i++) {
         try {
           if (await this.isRunning()) {
             console.log('Riot Client Services is running.');
@@ -122,8 +133,7 @@ export class RiotGameClient {
           setTimeout(resolve, 1000);
         });
       }
-    }
-  };
+  }
 }
 
 

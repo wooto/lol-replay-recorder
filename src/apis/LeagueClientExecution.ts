@@ -11,16 +11,32 @@ const execAsync = promisify(exec);
 
 export class LeagueClientExecution {
   async stopRiotProcesses() {
-    try{
-      await execAsync('taskkill /F /IM "RiotClientUx.exe" /T');
-    }catch (e) {
-      // ignore
+    const prcoesses = ['RiotClientUx.exe', 'LeagueClient.exe'];
+    for(const process of prcoesses) {
+      try{
+        await execAsync(`taskkill /F /IM "${process}" /T`);
+        console.log(`Killed ${process}`)
+      }catch (e) {
+        // ignore
+      }
     }
-    try{
-      await execAsync('taskkill /F /IM "LeagueClient.exe" /T');
-    }catch (e) {
-      // ignore
+
+    for(const process of prcoesses) {
+      for(let i = 0; i < 30; i++) {
+        try {
+          await sleepInSeconds(1);
+          // process to check if the process is still running
+          const { stdout } = await execAsync(`tasklist /FI "IMAGENAME eq ${process}"`);
+          if (!stdout.includes(process)) {
+            break;
+          }
+          console.log(`Waiting for ${process} to stop...`)
+        } catch (e) {
+          break;
+        }
+      }
     }
+
     console.log('Riot and League processes have been stopped.');
   };
 
