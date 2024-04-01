@@ -40,7 +40,7 @@ export class RiotGameClient {
       '/lol-patch/v1/products/league_of_legends/state',
       'GET',
       null,
-      10,
+      0,
     );
   }
 
@@ -58,7 +58,6 @@ export class RiotGameClient {
           1,
         );
       } catch(e) {
-        console.log(e);
         await sleepInSeconds(2);
         continue;
       }
@@ -73,6 +72,23 @@ export class RiotGameClient {
       null,
       60,
     );
+  }
+
+  async getInstalls(): Promise<any> {
+    for(let i = 0; i < 10; i++) {
+      try {
+      return await invokeRiotRequest(
+        await this.getLockfilePath(),
+        '/patch/v1/installs',
+        'GET',
+        null,
+        0,
+      );
+      } catch(e) {
+        await sleepInSeconds(1);
+        continue;
+      }
+    }
   }
 
   async getClientPath(): Promise<string[]> {
@@ -100,7 +116,7 @@ export class RiotGameClient {
   async startRiotClient(region: string = 'KR', options?: { wait: boolean }): Promise<void> {
     options = options || { wait: false };
 
-    await new Promise((resolve, reject) => {
+    new Promise((resolve, reject) => {
       const process = spawn(rcsExePath,
         ['--launch-product=league_of_legends', `--launch-patchline=live`, `--region=${region.toUpperCase()}`],
         { shell: true });
@@ -116,7 +132,7 @@ export class RiotGameClient {
       });
     });
 
-    await sleepInSeconds(5);
+    await new RiotGameClient().getInstalls();
   };
 
   async waitToBeReady() {

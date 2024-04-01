@@ -11,7 +11,12 @@ const execAsync = promisify(exec);
 
 export class LeagueClientExecution {
   async stopRiotProcesses() {
-    const prcoesses = ['RiotClientUx.exe', 'LeagueClient.exe'];
+    const prcoesses = [
+      'RiotClientUx.exe',
+      'RiotClientServices.exe',
+      'RiotClient.exe',
+      'LeagueClient.exe'
+    ];
     for(const process of prcoesses) {
       try{
         await execAsync(`taskkill /F /IM "${process}" /T`);

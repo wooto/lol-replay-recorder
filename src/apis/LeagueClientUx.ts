@@ -1,12 +1,27 @@
+import { exec, spawn } from 'node:child_process';
+import { promisify } from 'node:util';
+import CustomError from '../model/CustomError';
 import { makeRequest } from '../model/LcuRequest';
 import Summoner from '../model/Summoner';
-import CustomError from '../model/CustomError';
+import { sleepInSeconds } from '../utils/utils';
+
+const execAsync = promisify(exec);
+const rcuExePath = `"C:\\Riot Games\\League of Legends\\LeagueClient.exe"`;
 
 export class LeagueClientUx {
   patch: string;
 
   constructor() {
     this.patch = '';
+  }
+
+  // LeagueClient.exe
+  async startClient(params: { region: string }) {
+    spawn(rcuExePath,
+      [`--region=${params.region.toUpperCase()}`],
+      { shell: true });
+
+    await sleepInSeconds(5);
   }
 
   async waitForClientToBeReady() {
