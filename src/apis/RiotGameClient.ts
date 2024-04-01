@@ -61,7 +61,7 @@ export class RiotGameClient {
         await sleepInSeconds(2);
         continue;
       }
-    } 
+    }
   }
 
   async getState(): Promise<{ action: string }> {
