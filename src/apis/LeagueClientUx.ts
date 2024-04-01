@@ -124,7 +124,7 @@ export class LeagueClientUx {
 
   async launchReplay(matchId: any) {
     await this.downloadReplay(matchId);
-    await makeRequest('POST', `/lol-replays/v1/rofls/${matchId}/watch`, {}, 10);
+    await makeRequest('POST', `/lol-replays/v1/rofls/${matchId}/watch`, {});
   }
 
   /// MATCH REQUESTS ///
