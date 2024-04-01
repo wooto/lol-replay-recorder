@@ -4,6 +4,7 @@ import { spawn } from 'node:child_process';
 import * as fs from 'fs';
 import { makeRequest } from '../model/RiotRequest';
 import { sleepInSeconds } from '../utils/utils';
+import { RiotTypes } from '../model/RiotTypes';
 
 const rcsExePath = `"C:\\Riot Games\\Riot Client\\RiotClientServices.exe"`;
 
@@ -113,9 +114,7 @@ export class RiotGameClient {
   };
 
 
-  async startRiotClient(region: string = 'KR', options?: { wait: boolean }): Promise<void> {
-    options = options || { wait: false };
-
+  async startRiotClient(region: RiotTypes.PlatformId): Promise<void> {
     new Promise((resolve, reject) => {
       const process = spawn(rcsExePath,
         ['--launch-product=league_of_legends', `--launch-patchline=live`, `--region=${region.toUpperCase()}`],
