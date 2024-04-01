@@ -124,7 +124,10 @@ export class LeagueClientUx {
 
   async launchReplay(matchId: any) {
     await this.downloadReplay(matchId);
-    await makeRequest('POST', `/lol-replays/v1/rofls/${matchId}/watch`, {});
+    for(let i = 0; i < 10; i++) {
+      await makeRequest('POST', `/lol-replays/v1/rofls/${matchId}/watch`, {});
+      await sleepInSeconds(1);
+    }
   }
 
   /// MATCH REQUESTS ///
