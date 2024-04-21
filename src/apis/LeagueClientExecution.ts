@@ -34,9 +34,9 @@ export class LeagueClientExecution {
       for(let i = 0; i < 30; i++) {
         try {
           // process to check if the process is still running
+          await sleepInSeconds(1);
           const { stdout } = await execAsync(`tasklist /FI "IMAGENAME eq ${process}"`);
           if (!stdout.includes(process)) {
-            await sleepInSeconds(1);
             break;
           }
           console.log(`Waiting for ${process} to stop...`)
