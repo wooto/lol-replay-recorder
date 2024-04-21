@@ -34,14 +34,13 @@ async function makeRequest(
 }
 
 async function parseResponseForErrors(response: any, retries: any) {
-  if (response.status === 404) {
-    throw new CustomError('Failed to find the requested resource.');
-  }
-
   if (retries <= 0) {
     throw new Error(
       `Client Request Error: ${response.status} ${response.statusText} - ${await response.text()}`,
     );
+  }
+  if (response.status === 404) {
+    throw new CustomError('Failed to find the requested resource.');
   }
 }
 
