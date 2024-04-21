@@ -31,16 +31,13 @@ export class LeagueClientUx {
   }
 
   async waitForClientToBeReady() {
-    for (let i = 0; i < 30; i++) {
+    for(let i = 0; i < 30; i++) {
       try {
-        await this.getPatchVersion();
+        await this.getState();
         console.log('Client is ready.');
         return true;
       } catch (e) {
-        console.log('Waiting for client to be ready...');
-        await new Promise(resolve => {
-          setTimeout(resolve, 1000);
-        });
+        await sleepInSeconds(1);
       }
     }
     throw new CustomError('League Client took too long to start.');
@@ -169,6 +166,10 @@ export class LeagueClientUx {
     }
     const rawPatchData = await makeRequest('GET', '/lol-patch/v1/game-version');
     return rawPatchData;
+  }
+
+  async getState() {
+    return await makeRequest('GET', '/lol-patch/v1/products/league_of_legends/state', null, 60);
   }
 
   async getQueues() {
