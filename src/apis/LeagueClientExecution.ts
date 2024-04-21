@@ -8,10 +8,46 @@ import { getActiveWindow, getWindows, mouse } from '@nut-tree/nut-js';
 import { sleepInSeconds } from '../utils/utils';
 import { RiotGameClient } from './RiotGameClient';
 import { LeagueClientUx } from './LeagueClientUx';
+import { RiotTypes } from '../model/RiotTypes';
+import { Locale } from '../model/Locale';
+import Region = RiotTypes.Region;
 
 const execAsync = promisify(exec);
 
 export class LeagueClientExecution {
+  async startRiotProcessesSafely(params: {
+    region: Region,
+    locale: Locale,
+    username: string,
+    password: string,
+  }) {
+    await new LeagueClientExecution().stopRiotProcesses();
+    for (let i = 0; i < 5; i++) {
+      try {
+        await new RiotGameClient().startRiotClient(params.region as any, params.locale);
+        await new RiotGameClient().login(params.username, params.password);
+        console.log('Started client');
+        await new LeagueClientUx().startClient({ region: params.region, locale: params.locale });
+        console.log('Waiting for client to be ready');
+        const { action } = await new LeagueClientUx().getState({ options: { retry: 15 } });
+        console.log('Client state:', action);
+        if (action !== 'Idle') {
+          throw new Error('Client is not ready', action);
+        }
+        console.log('Client is ready');
+        break;
+      } catch (e) {
+        console.log('Failed to start client:', e);
+        await sleepInSeconds(1);
+      }
+    }
+    const { action } = await new LeagueClientUx().getState({ options: { retry: 10 } });
+    if (action !== 'Idle') {
+      throw new Error('Client is not ready', action);
+    }
+    console.log('Client is running');
+    await sleepInSeconds(5);
+  }
 
   async stopRiotProcesses() {
     const prcoesses = [
