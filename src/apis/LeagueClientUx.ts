@@ -171,7 +171,7 @@ export class LeagueClientUx {
     return rawPatchData;
   }
 
-  async getState({ options = { retry: 0 } }: { options?: { retry: number } }) {
+  async getState({ options = { retry: 0 } }: { options?: { retry: number } }): Promise<{ action: 'Idle' }> {
     return await makeRequest('GET', '/lol-patch/v1/products/league_of_legends/state', null, options.retry);
   }
 
