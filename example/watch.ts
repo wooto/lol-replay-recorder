@@ -9,7 +9,7 @@ console.log('Hello, World!');
 
 const locale_list = Object.values(Locale);
 for (const locale of locale_list) {
-  new LeagueClientExecution().startRiotProcessesSafely({
+  await new LeagueClientExecution().startRiotProcessesSafely({
     region: 'na1' as any,
     locale,
     username,
