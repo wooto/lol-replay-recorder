@@ -1,6 +1,6 @@
 {
   "name": "@wooto/lol-replay-recorder",
-  "version": "0.0.39",
+  "version": "0.0.40",
   "type": "module",
   "types": "dist/index.d.ts",
   "module": "dist/index.js",
