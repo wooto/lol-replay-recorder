@@ -16,7 +16,8 @@ export class LeagueClientExecution {
       'RiotClientServices.exe',
       'RiotClient.exe',
       'Riot Client.exe',
-      'LeagueClient.exe'
+      'LeagueClient.exe',
+      'League of Legends.exe',
     ];
     for(const process of prcoesses) {
       try{
