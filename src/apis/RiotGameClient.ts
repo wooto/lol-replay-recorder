@@ -98,8 +98,12 @@ export class RiotGameClient {
   }
 
   async removeLockfile() {
-    const lockfilePath = await this.getLockfilePath();
-    await promisify(fs.unlink)(lockfilePath);
+    try {
+      const lockfilePath = await this.getLockfilePath();
+      await promisify(fs.unlink)(lockfilePath);
+    }catch (e) {
+      // ignore
+    }
   }
 
   async getLockfilePath(): Promise<string> {
