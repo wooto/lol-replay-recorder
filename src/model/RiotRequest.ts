@@ -1,6 +1,7 @@
 import Bottleneck from 'bottleneck';
 import https from 'https';
 import CustomError from './CustomError';
+import { sleepInSeconds } from '../utils/utils';
 
 const MAX_REQUESTS_PER_SECOND = 1;
 
@@ -20,6 +21,7 @@ async function makeRequest(
   const newHeaders: any = { ...headers, 'Content-Type': 'application/json' };
   try {
     const response = await limiter.schedule(() => {
+      console.log(`Making request to ${url} ${retries}`);
       return fetch(url, new RequestOptions(method, newHeaders, body));
     });
 
