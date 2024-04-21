@@ -34,7 +34,7 @@ async function makeRequest(
     console.dir(response, { depth: null })
     try {
       console.log(`Response from ${url} ${retries}`)
-      return response.json();
+      return await response.json();
     } catch (err) {
       return response;
     }
