@@ -72,7 +72,7 @@ export class RiotGameClient {
       '/lol-patch/v1/products/league_of_legends/state',
       'GET',
       null,
-      60,
+      0,
     );
   }
 
@@ -143,7 +143,7 @@ export class RiotGameClient {
   async waitToBeReady() {
       for (let i = 0; i < 60; i++) {
         try {
-          if (await this.isRunning()) {
+          if (await this.getState()) {
             console.log('Riot Client Services is running.');
             return;
           }
