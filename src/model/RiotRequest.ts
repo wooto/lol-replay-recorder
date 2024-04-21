@@ -27,7 +27,7 @@ async function makeRequest(
           `Client Request Error: ${response.status} ${response.statusText} - ${await response.text()}`,
         );
       }
-      makeRequest(method, url, headers, body, retries - 1);
+      await makeRequest(method, url, headers, body, retries - 1);
     }
   });
   if (!response.ok) {

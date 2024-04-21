@@ -28,8 +28,6 @@ export class LeagueClientUx {
         `--locale=${params.locale}`,
       ],
       { shell: true });
-
-    await sleepInSeconds(5);
   }
 
   async waitForClientToBeReady() {
