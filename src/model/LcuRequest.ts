@@ -12,7 +12,6 @@ async function makeRequest(method: any, url: any, body: any = {}, retries: any =
   try {
     const response = await limiter.schedule(async () => {
       const credentials = await authenticate();
-      console.log(`Making request to ${url} ${retries}`);
       return createHttp1Request(
         {
           method,
@@ -25,7 +24,6 @@ async function makeRequest(method: any, url: any, body: any = {}, retries: any =
 
     if (!response.ok) {
       await parseResponseForErrors(response, retries - 1);
-      console.log(`retrying. retries = ${retries - 1}`);
       return makeRequest(method, url, body, retries - 1);
     }
     try {

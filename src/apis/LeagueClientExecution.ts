@@ -26,18 +26,13 @@ export class LeagueClientExecution {
       try {
         await new RiotGameClient().startRiotClient(params.region as any, params.locale);
         await new RiotGameClient().login(params.username, params.password);
-        console.log('Started client');
         await new LeagueClientUx().startClient({ region: params.region, locale: params.locale });
-        console.log('Waiting for client to be ready');
         const { action } = await new LeagueClientUx().getState({ options: { retry: 15 } });
-        console.log('Client state:', action);
         if (action !== 'Idle') {
           throw new Error('Client is not ready', action);
         }
-        console.log('Client is ready');
         break;
       } catch (e) {
-        console.log('Failed to start client:', e);
         await sleepInSeconds(1);
       }
     }
@@ -45,7 +40,6 @@ export class LeagueClientExecution {
     if (action !== 'Idle') {
       throw new Error('Client is not ready', action);
     }
-    console.log('Client is running');
     await sleepInSeconds(5);
   }
 
@@ -61,7 +55,6 @@ export class LeagueClientExecution {
     for(const process of prcoesses) {
       try{
         await execAsync(`taskkill /F /IM "${process}" /T`);
-        console.log(`Killed ${process}`)
       }catch (e) {
         // ignore
       }
@@ -76,7 +69,6 @@ export class LeagueClientExecution {
           if (!stdout.includes(process)) {
             break;
           }
-          console.log(`Waiting for ${process} to stop...`)
         } catch (e) {
           break;
         }
@@ -85,7 +77,6 @@ export class LeagueClientExecution {
     await new RiotGameClient().removeLockfile();
     await new LeagueClientUx().removeLockfile();
 
-    console.log('Riot and League processes have been stopped.');
 
   };
 
@@ -132,7 +123,6 @@ export class LeagueClientExecution {
       const value = config?.General?.EnableReplayApi;
       return value?.toString().toLowerCase() === 'true' || value === '1' || value === 1 || value === true;
     } catch (error) {
-      console.error(`Error reading config file: ${error}`);
       return false;
     }
   }
@@ -148,7 +138,6 @@ export class LeagueClientExecution {
       const newFileContent = ini.stringify(config);
       await writeFile(path, newFileContent, { encoding: 'utf-8' });
 
-      console.info(`Setting EnableReplayApi ${path}=${enabled}`);
     } catch (error) {
       console.error(`Error writing config file: ${error}`);
     }
@@ -161,7 +150,6 @@ export class LeagueClientExecution {
     const windows = await getWindows();
     for (const window of windows) {
       if ((await window.getTitle()).includes(targetWindowTitle)) {
-        console.log('Found League of Legends window', await window.getTitle());
         for (let i = 0; i < 10; i++) {
           await window.focus();
           const region = await window.getRegion();
