@@ -18,12 +18,12 @@ async function makeRequest(
   retries: any = 3,
 ): Promise<any> {
   const newHeaders: any = { ...headers, 'Content-Type': 'application/json' };
-  const response = await limiter.schedule(() => {
+  const response = await limiter.schedule(async () => {
     try {
       return fetch(url, new RequestOptions(method, newHeaders, body));
-    } catch (e) {
-      return { ok: false };
+    } catch (e) { /* empty */
     }
+    return { ok: false };
   });
   if (!response.ok) {
     await parseResponseForErrors(response, retries - 1);
