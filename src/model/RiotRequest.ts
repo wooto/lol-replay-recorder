@@ -23,12 +23,6 @@ async function makeRequest(
       console.log(`Making request to ${url}`)
       return fetch(url, new RequestOptions(method, newHeaders, body));
     } catch (e) { /* empty */
-      if (retries <= 0) {
-        throw new Error(
-          `Client Request Error: ${response.status} ${response.statusText} - ${await response.text()}`,
-        );
-      }
-      await makeRequest(method, url, headers, body, retries - 1);
     }
   });
   if (!response.ok) {
