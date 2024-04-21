@@ -28,7 +28,6 @@ for (const locale of locale_list) {
 
   await new RiotGameClient().startRiotClient(region as any, locale);
   await new RiotGameClient().login(username, password);
-  await sleepInSeconds(10);
   for(let i = 0; i < 5; i++) {
     try{
       console.log('Started client');
