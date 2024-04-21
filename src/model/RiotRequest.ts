@@ -23,7 +23,7 @@ async function makeRequest(
       return fetch(url, new RequestOptions(method, newHeaders, body));
     } catch (e) { /* empty */
     }
-    return { ok: false };
+    return { ok: false, json() { return {}; }}
   });
   if (!response.ok) {
     await parseResponseForErrors(response, retries - 1);
