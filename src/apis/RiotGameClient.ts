@@ -150,17 +150,24 @@ export class RiotGameClient {
 
   async waitToPatch() {
     for (let i = 0; i < 30; i++) {
-      const status = await invokeRiotRequest(
-        await this.getLockfilePath(),
-        '/patch/v1/installs/league_of_legends/status',
-      );
+      try {
+        const status = await invokeRiotRequest(
+          await this.getLockfilePath(),
+          '/patch/v1/installs/league_of_legends/status',
+          'GET',
+          null,
+          0,
+        );
 
-      if (status.patch.state === 'up_to_date') {
-        break;
+        if (status.patch.state === 'up_to_date') {
+          break;
+        }
+
+        console.log(`Installing LoL: ${status.patch.progress.progress}%`);
       }
-
-      console.log(`Installing LoL: ${status.patch.progress.progress}%`);
-
+      catch (e) {
+        console.log('Failed to get patch status:', e);
+      }
       await sleepInSeconds(10);
     }
 
