@@ -14,7 +14,10 @@ for (const locale of locale_list) {
   await new RiotGameClient().removeLockfile();
 
   await new LeagueClientUx().startClient({ region, locale: locale });
+  console.log('Client started');
   await new RiotGameClient().login(username, password);
-  await new RiotGameClient().isRunning();
+  console.log('Logged in');
+  await new RiotGameClient().waitToBeReady();
+  console.log('Client is running');
 }
 exit(0);
