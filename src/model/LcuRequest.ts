@@ -12,6 +12,7 @@ async function makeRequest(method: any, url: any, body: any = {}, retries: any =
   const credentials = await authenticate();
   try {
     const response = await limiter.schedule(() => {
+      console.log(`Making request to ${url} ${retries}`);
       return createHttp1Request(
         {
           method,
