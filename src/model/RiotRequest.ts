@@ -23,6 +23,7 @@ async function makeRequest(
       console.log(`Making request to ${url}`)
       return fetch(url, new RequestOptions(method, newHeaders, body));
     } catch (e) { /* empty */
+      console.log(`Error making request to ${url}`)
     }
   });
   if (!response.ok) {
