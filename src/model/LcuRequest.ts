@@ -10,8 +10,8 @@ const limiter = new Bottleneck({
 
 async function makeRequest(method: any, url: any, body: any = {}, retries: any = 3): Promise<any> {
   try {
-    const credentials = await authenticate();
-    const response = await limiter.schedule(() => {
+    const response = await limiter.schedule(async () => {
+      const credentials = await authenticate();
       console.log(`Making request to ${url} ${retries}`);
       return createHttp1Request(
         {
