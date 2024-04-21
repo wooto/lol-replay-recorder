@@ -29,10 +29,11 @@ async function makeRequest(
       if (response.status === 404) {
         throw new CustomError('Failed to find the requested resource.');
       }
-      return await makeRequest(method, url, headers, body, retries - 1);
+      return makeRequest(method, url, headers, body, retries - 1);
     }
 
     try {
+      console.log(`Response from ${url} ${retries}`)
       return await response.json();
     } catch (err) {
       return response;
