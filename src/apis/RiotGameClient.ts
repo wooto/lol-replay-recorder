@@ -48,23 +48,16 @@ export class RiotGameClient {
   }
 
   async login(username: string, password: string) {
-    for(let i = 0; i < 20; i++) {
-      try {
-        return await invokeRiotRequest(
-          await this.getLockfilePath(),
-          '/rso-auth/v1/authorization/gas',
-          'POST',
-          {
-            username,
-            password,
-          },
-          1,
-        );
-      } catch(e) {
-        await sleepInSeconds(2);
-        continue;
-      }
-    }
+    return await invokeRiotRequest(
+      await this.getLockfilePath(),
+      '/rso-auth/v1/authorization/gas',
+      'POST',
+      {
+        username,
+        password,
+      },
+      10,
+    );
   }
 
   async getState(): Promise<{ action: string }> {
