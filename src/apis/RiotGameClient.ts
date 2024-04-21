@@ -67,7 +67,7 @@ export class RiotGameClient {
         username,
         password,
       },
-      10,
+      30,
     );
   }
 
