@@ -23,6 +23,7 @@ async function waitFile(filePath: string, timeout: number = 10000) {
 async function invokeRiotRequest(lockfile: string, path: string, method: string = 'GET', body: any = null, retry: number = 3): Promise<any> {
   await waitFile(lockfile, 10000)
   const lockContent = (await promisify(fs.readFile)(lockfile, { encoding: 'utf8' })).split(':');
+  console.log(lockContent)
   const port = lockContent[2];
   const password = lockContent[3];
   const auth = Buffer.from(`riot:${password}`).toString('base64');
