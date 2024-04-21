@@ -40,11 +40,7 @@ async function invokeRiotRequest(lockfile: string, path: string, method: string 
     retry,
   );
 
-  if (!response.ok) {
-    throw new Error(`Failed to ${method} '${path}'. Status: ${response.status}`);
-  }
-
-  return response.json();
+  return response;
 }
 
 export class RiotGameClient {
