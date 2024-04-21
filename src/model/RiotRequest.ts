@@ -1,7 +1,6 @@
 import Bottleneck from 'bottleneck';
 import https from 'https';
 import CustomError from './CustomError';
-import { sleepInSeconds } from '../utils/utils';
 
 const MAX_REQUESTS_PER_SECOND = 1;
 
@@ -29,7 +28,7 @@ async function makeRequest(
       if (response.status === 404) {
         throw new CustomError('Failed to find the requested resource.');
       }
-      return makeRequest(method, url, headers, body, retries - 1);
+      return await makeRequest(method, url, headers, body, retries - 1);
     }
 
     try {
@@ -43,7 +42,7 @@ async function makeRequest(
     if (retries <= 0) {
       throw new Error(`Client Request Error: ${e.message}`);
     }
-    return makeRequest(method, url, headers, body, retries - 1);
+    return await makeRequest(method, url, headers, body, retries - 1);
   }
 }
 class RequestOptions {
