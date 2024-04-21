@@ -148,22 +148,22 @@ export class RiotGameClient {
     await new RiotGameClient().getInstalls();
   };
 
-  async waitToBeReady() {
-      for (let i = 0; i < 60; i++) {
-        try {
-          if (await this.getState()) {
-            console.log('Riot Client Services is running.');
-            return;
-          }
-        } catch (e) {
-          console.log('Riot Client Services is not running yet.');
-        }
-        await new Promise((resolve) => {
-          setTimeout(resolve, 1000);
-        });
+  async waitToPatch() {
+    for (let i = 0; i < 30; i++) {
+      const status = await invokeRiotRequest(
+        await this.getLockfilePath(),
+        '/patch/v1/installs/league_of_legends/status',
+      );
+
+      if (status.patch.state === 'up_to_date') {
+        break;
       }
 
-      throw new Error('Riot Client Services is not running.');
+      console.log(`Installing LoL: ${status.patch.progress.progress}%`);
+
+      await sleepInSeconds(10);
+    }
+
   }
 }
 
