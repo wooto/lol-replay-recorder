@@ -31,7 +31,6 @@ async function makeRequest(
       return makeRequest(method, url, headers, body, retries - 1);
     }
 
-    console.dir(response, { depth: null })
     return response;
   } catch (e) {
     if (retries <= 0) {
