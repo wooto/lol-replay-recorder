@@ -149,7 +149,7 @@ export class RiotGameClient {
   };
 
   async waitToPatch() {
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < 60; i++) {
       try {
         const status = await invokeRiotRequest(
           await this.getLockfilePath(),
@@ -168,7 +168,7 @@ export class RiotGameClient {
       catch (e) {
         console.log('Failed to get patch status:', e);
       }
-      await sleepInSeconds(10);
+      await sleepInSeconds(1);
     }
 
   }
