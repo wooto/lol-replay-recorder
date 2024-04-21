@@ -5,6 +5,7 @@ import * as fs from 'fs';
 import { makeRequest } from '../model/RiotRequest';
 import { sleepInSeconds } from '../utils/utils';
 import { RiotTypes } from '../model/RiotTypes';
+import { Locale } from '../model/Locale';
 
 const rcsExePath = `"C:\\Riot Games\\Riot Client\\RiotClientServices.exe"`;
 
@@ -114,10 +115,15 @@ export class RiotGameClient {
   };
 
 
-  async startRiotClient(region: RiotTypes.PlatformId): Promise<void> {
+  async startRiotClient(region: RiotTypes.PlatformId, locale: Locale): Promise<void> {
     new Promise((resolve, reject) => {
       const process = spawn(rcsExePath,
-        ['--launch-product=league_of_legends', `--launch-patchline=live`, `--region=${region.toUpperCase()}`],
+        [
+          '--launch-product=league_of_legends',
+          `--launch-patchline=live`,
+          `--region=${region.toUpperCase()}`,
+          `--locale=${locale}`,
+        ],
         { shell: true });
 
       process.on('error', (error) => {

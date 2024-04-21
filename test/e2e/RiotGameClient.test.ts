@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 import { LeagueClientExecution, RiotGameClient } from '../../src';
 import { RiotTypes } from '../../src/model/RiotTypes';
+import { Locale } from '../../src/model/Locale';
 import PlatformId = RiotTypes.PlatformId;
 
 describe('RiotGameClient', () => {
@@ -23,7 +24,7 @@ describe('RiotGameClient', () => {
 
   it.skip('should be able to start the RiotGameClient', async () => {
     await new LeagueClientExecution().stopRiotProcesses();
-    await new RiotGameClient().startRiotClient(PlatformId.EU);
+    await new RiotGameClient().startRiotClient(PlatformId.EU, Locale.en_US);
     expect(await new RiotGameClient().isRunning()).to.be.true;
   });
 });
