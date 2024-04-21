@@ -18,18 +18,10 @@ for (const locale of locale_list) {
   await new LeagueClientExecution().stopRiotProcesses();
   console.log('Stopped Riot processes')
 
-  console.log('Starting client with locale:', locale)
-  await new RiotGameClient().startRiotClient(region as any, locale);
-  console.log('waiting for patch');
-  await new RiotGameClient().login(username, password);
-  console.log('Logged in');
-  await new LeagueClientExecution().stopRiotProcesses();
-  console.log('Stopped Riot processes');
-
-  await new RiotGameClient().startRiotClient(region as any, locale);
-  await new RiotGameClient().login(username, password);
   for(let i = 0; i < 5; i++) {
     try{
+      await new RiotGameClient().startRiotClient(region as any, locale);
+      await new RiotGameClient().login(username, password);
       console.log('Started client');
       await new LeagueClientUx().startClient({ region, locale: locale });
       console.log('Waiting for client to be ready');
