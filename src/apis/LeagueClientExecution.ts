@@ -45,6 +45,7 @@ export class LeagueClientExecution {
     }
 
     console.log('Riot and League processes have been stopped.');
+
   };
 
   async findWindowsInstalled(): Promise<string[]> {

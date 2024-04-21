@@ -6,6 +6,7 @@ import { makeRequest } from '../model/RiotRequest';
 import { sleepInSeconds } from '../utils/utils';
 import { RiotTypes } from '../model/RiotTypes';
 import { Locale } from '../model/Locale';
+import { promisify } from 'util';
 
 const rcsExePath = `"C:\\Riot Games\\Riot Client\\RiotClientServices.exe"`;
 
@@ -101,6 +102,11 @@ export class RiotGameClient {
       }
     }
     return [];
+  }
+
+  async removeLockfile() {
+    const lockfilePath = await this.getLockfilePath();
+    await promisify(fs.unlink)(lockfilePath);
   }
 
   async getLockfilePath(): Promise<string> {
