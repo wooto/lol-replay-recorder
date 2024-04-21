@@ -28,13 +28,13 @@ async function makeRequest(
       if (response.status === 404) {
         throw new CustomError('Failed to find the requested resource.');
       }
-      return await makeRequest(method, url, headers, body, retries - 1);
+      return makeRequest(method, url, headers, body, retries - 1);
     }
 
     console.dir(response, { depth: null })
     try {
       console.log(`Response from ${url} ${retries}`)
-      return await response.json();
+      return response.json();
     } catch (err) {
       return response;
     }
@@ -43,7 +43,7 @@ async function makeRequest(
     if (retries <= 0) {
       throw new Error(`Client Request Error: ${e.message}`);
     }
-    return await makeRequest(method, url, headers, body, retries - 1);
+    return makeRequest(method, url, headers, body, retries - 1);
   }
 }
 class RequestOptions {
