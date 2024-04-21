@@ -26,7 +26,9 @@ async function makeRequest(
     });
 
     if (!response.ok) {
-      await parseResponseForErrors(response, retries - 1);
+      if (response.status === 404) {
+        throw new CustomError('Failed to find the requested resource.');
+      }
       return await makeRequest(method, url, headers, body, retries - 1);
     }
 
@@ -40,22 +42,9 @@ async function makeRequest(
     if (retries <= 0) {
       throw new Error(`Client Request Error: ${e.message}`);
     }
-    return await makeRequest(method, url, headers, body, retries - 1);
+    return makeRequest(method, url, headers, body, retries - 1);
   }
 }
-
-async function parseResponseForErrors(response: any, retries: any) {
-  if (response.status === 404) {
-    throw new CustomError('Failed to find the requested resource.');
-  }
-
-  if (retries <= 0) {
-    throw new Error(
-      `Client Request Error: ${response.status} ${response.statusText} - ${await response.text()}`,
-    );
-  }
-}
-
 class RequestOptions {
   body: any;
 
