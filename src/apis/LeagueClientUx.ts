@@ -3,6 +3,7 @@ import CustomError from '../model/CustomError';
 import { makeRequest } from '../model/LcuRequest';
 import Summoner from '../model/Summoner';
 import { sleepInSeconds } from '../utils/utils';
+import { Locale } from '../model/Locale';
 
 const rcuExePath = `"C:\\Riot Games\\League of Legends\\LeagueClient.exe"`;
 
@@ -14,9 +15,18 @@ export class LeagueClientUx {
   }
 
   // LeagueClient.exe
-  async startClient(params: { region: string }) {
+  async startClient(params: {
+    region: string,
+    locale: Locale
+  } = {
+    region: 'na1',
+    locale: Locale.en_US,
+  }) {
     spawn(rcuExePath,
-      [`--region=${params.region.toUpperCase()}`],
+      [
+        `--region=${params.region.toUpperCase()}`,
+        `--locale=${params.locale}`,
+      ],
       { shell: true });
 
     await sleepInSeconds(5);
