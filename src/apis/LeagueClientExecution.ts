@@ -20,6 +20,11 @@ export class LeagueClientExecution {
     password: string,
   }) {
     await new LeagueClientExecution().stopRiotProcesses();
+    await new RiotGameClient().startRiotClient(params.region as any, params.locale);
+    await new RiotGameClient().login(params.username, params.password);
+    await new LeagueClientUx().startClient({ region: params.region, locale: params.locale });
+
+    await new LeagueClientExecution().stopRiotProcesses();
     for (let i = 0; i < 5; i++) {
       try {
         await new RiotGameClient().startRiotClient(params.region as any, params.locale);
