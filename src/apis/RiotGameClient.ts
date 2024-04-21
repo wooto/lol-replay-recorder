@@ -154,6 +154,8 @@ export class RiotGameClient {
           setTimeout(resolve, 1000);
         });
       }
+
+      throw new Error('Riot Client Services is not running.');
   }
 }
 
