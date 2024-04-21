@@ -20,6 +20,7 @@ async function makeRequest(
   const newHeaders: any = { ...headers, 'Content-Type': 'application/json' };
   const response = await limiter.schedule(async () => {
     try {
+      console.log(`Making request to ${url}`)
       return fetch(url, new RequestOptions(method, newHeaders, body));
     } catch (e) { /* empty */
       if (retries <= 0) {
