@@ -45,6 +45,7 @@ export class LeagueClientUx {
         });
       }
     }
+    throw new CustomError('League Client took too long to start.');
   }
 
   /// GAME SETTINGS/CONFIGURATION REQUESTS ///
