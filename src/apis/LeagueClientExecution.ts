@@ -12,6 +12,7 @@ import { LeagueClientUx } from './LeagueClientUx';
 const execAsync = promisify(exec);
 
 export class LeagueClientExecution {
+
   async stopRiotProcesses() {
     const prcoesses = [
       'RiotClientUx.exe',

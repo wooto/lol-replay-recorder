@@ -25,10 +25,10 @@ for (const locale of locale_list) {
       console.log('Started client');
       await new LeagueClientUx().startClient({ region, locale: locale });
       console.log('Waiting for client to be ready');
-      const { state } = await new LeagueClientUx().getState({ options: { retry: 10 } });
-      console.log('Client state:', state);
-      if (state !== 'Idle') {
-        throw new Error('Client is not ready', state);
+      const { action } = await new LeagueClientUx().getState({ options: { retry: 10 } });
+      console.log('Client state:', action);
+      if (action !== 'Idle') {
+        throw new Error('Client is not ready', action);
       }
       console.log('Client is ready');
       break;
