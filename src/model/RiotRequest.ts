@@ -30,7 +30,11 @@ async function makeRequest(
       return makeRequest(method, url, headers, body, retries - 1);
     }
 
-    return response;
+    try {
+      return await response.json();
+    } catch (err) {
+      return response;
+    }
   } catch (e) {
     if (retries <= 0) {
       throw new Error(`Client Request Error: ${e.message}`);
