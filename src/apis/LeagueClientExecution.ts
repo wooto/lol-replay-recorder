@@ -8,15 +8,13 @@ import { getActiveWindow, getWindows, mouse } from '@nut-tree/nut-js';
 import { sleepInSeconds } from '../utils/utils';
 import { RiotGameClient } from './RiotGameClient';
 import { LeagueClientUx } from './LeagueClientUx';
-import { RiotTypes } from '../model/RiotTypes';
 import { Locale } from '../model/Locale';
-import Region = RiotTypes.Region;
 
 const execAsync = promisify(exec);
 
 export class LeagueClientExecution {
   async startRiotProcessesSafely(params: {
-    region: Region,
+    region: string,
     locale: Locale,
     username: string,
     password: string,
