@@ -26,6 +26,7 @@ for (const locale of locale_list) {
       await new LeagueClientUx().startClient({ region, locale: locale });
       console.log('Waiting for client to be ready');
       await new LeagueClientUx().getState({ options: { retry: 10 } });
+      console.log('Client is ready');
       break;
     } catch (e) {
       console.log('Failed to start client:', e);
