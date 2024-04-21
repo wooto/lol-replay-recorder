@@ -1,6 +1,7 @@
 import { exit } from 'node:process';
 import { LeagueClientExecution, LeagueClientUx, RiotGameClient } from '../src';
 import { Locale } from '../src/model/Locale';
+import { sleepInSeconds } from '../src/utils/utils';
 
 
 const username = process.env.RIOT_USERNAME;
@@ -9,6 +10,7 @@ console.log('Hello, World!');
 
 const locale_list = Object.values(Locale);
 for (const locale of locale_list) {
+  console.log('Starting client with locale:', locale)
   const region = 'na1';
   await new LeagueClientExecution().stopRiotProcesses();
   await new RiotGameClient().removeLockfile();
@@ -19,5 +21,7 @@ for (const locale of locale_list) {
   console.log('Logged in');
   await new LeagueClientUx().getState();
   console.log('Client is running');
+  await sleepInSeconds(5);
+  console.log('Waiting for 5 seconds');
 }
 exit(0);
