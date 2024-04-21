@@ -6,22 +6,55 @@ import ini from 'ini';
 import path from 'node:path';
 import { getActiveWindow, getWindows, mouse } from '@nut-tree/nut-js';
 import { sleepInSeconds } from '../utils/utils';
+import { RiotGameClient } from './RiotGameClient';
+import { LeagueClientUx } from './LeagueClientUx';
+import { RiotTypes } from '../model/RiotTypes';
+import { Locale } from '../model/Locale';
+import Region = RiotTypes.Region;
 
 const execAsync = promisify(exec);
 
 export class LeagueClientExecution {
+  async startRiotProcessesSafely(params: {
+    region: Region,
+    locale: Locale,
+    username: string,
+    password: string,
+  }) {
+    await new LeagueClientExecution().stopRiotProcesses();
+    for (let i = 0; i < 5; i++) {
+      try {
+        await new RiotGameClient().startRiotClient(params.region as any, params.locale);
+        await new RiotGameClient().login(params.username, params.password);
+        await new LeagueClientUx().startClient({ region: params.region, locale: params.locale });
+        const { action } = await new LeagueClientUx().getState({ options: { retry: 15 } });
+        if (action !== 'Idle') {
+          throw new Error('Client is not ready', action);
+        }
+        break;
+      } catch (e) {
+        await sleepInSeconds(1);
+      }
+    }
+    const { action } = await new LeagueClientUx().getState({ options: { retry: 10 } });
+    if (action !== 'Idle') {
+      throw new Error('Client is not ready', action);
+    }
+    await sleepInSeconds(5);
+  }
+
   async stopRiotProcesses() {
     const prcoesses = [
       'RiotClientUx.exe',
       'RiotClientServices.exe',
       'RiotClient.exe',
       'Riot Client.exe',
-      'LeagueClient.exe'
+      'LeagueClient.exe',
+      'League of Legends.exe',
     ];
     for(const process of prcoesses) {
       try{
         await execAsync(`taskkill /F /IM "${process}" /T`);
-        console.log(`Killed ${process}`)
       }catch (e) {
         // ignore
       }
@@ -30,20 +63,21 @@ export class LeagueClientExecution {
     for(const process of prcoesses) {
       for(let i = 0; i < 30; i++) {
         try {
-          await sleepInSeconds(1);
           // process to check if the process is still running
+          await sleepInSeconds(1);
           const { stdout } = await execAsync(`tasklist /FI "IMAGENAME eq ${process}"`);
           if (!stdout.includes(process)) {
             break;
           }
-          console.log(`Waiting for ${process} to stop...`)
         } catch (e) {
           break;
         }
       }
     }
+    await new RiotGameClient().removeLockfile();
+    await new LeagueClientUx().removeLockfile();
 
-    console.log('Riot and League processes have been stopped.');
+
   };
 
   async findWindowsInstalled(): Promise<string[]> {
@@ -89,7 +123,6 @@ export class LeagueClientExecution {
       const value = config?.General?.EnableReplayApi;
       return value?.toString().toLowerCase() === 'true' || value === '1' || value === 1 || value === true;
     } catch (error) {
-      console.error(`Error reading config file: ${error}`);
       return false;
     }
   }
@@ -105,7 +138,6 @@ export class LeagueClientExecution {
       const newFileContent = ini.stringify(config);
       await writeFile(path, newFileContent, { encoding: 'utf-8' });
 
-      console.info(`Setting EnableReplayApi ${path}=${enabled}`);
     } catch (error) {
       console.error(`Error writing config file: ${error}`);
     }
@@ -118,7 +150,6 @@ export class LeagueClientExecution {
     const windows = await getWindows();
     for (const window of windows) {
       if ((await window.getTitle()).includes(targetWindowTitle)) {
-        console.log('Found League of Legends window', await window.getTitle());
         for (let i = 0; i < 10; i++) {
           await window.focus();
           const region = await window.getRegion();

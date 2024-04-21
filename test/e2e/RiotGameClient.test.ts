@@ -22,7 +22,7 @@ describe('RiotGameClient', () => {
     expect(credentials).not.to.be.empty;
   });
 
-  it.skip('should be able to start the RiotGameClient', async () => {
+  it('should be able to start the RiotGameClient', async () => {
     await new LeagueClientExecution().stopRiotProcesses();
     await new RiotGameClient().startRiotClient(PlatformId.EU, Locale.en_US);
     expect(await new RiotGameClient().isRunning()).to.be.true;

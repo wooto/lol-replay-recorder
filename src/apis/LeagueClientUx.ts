@@ -4,6 +4,9 @@ import { makeRequest } from '../model/LcuRequest';
 import Summoner from '../model/Summoner';
 import { sleepInSeconds } from '../utils/utils';
 import { Locale } from '../model/Locale';
+import path from 'node:path';
+import { promisify } from 'util';
+import * as fs from 'fs';
 
 const rcuExePath = `"C:\\Riot Games\\League of Legends\\LeagueClient.exe"`;
 
@@ -28,21 +31,16 @@ export class LeagueClientUx {
         `--locale=${params.locale}`,
       ],
       { shell: true });
-
-    await sleepInSeconds(5);
   }
 
   async waitForClientToBeReady() {
-    for (let i = 0; i < 30; i++) {
+    for(let i = 0; i < 30; i++) {
       try {
-        await this.getPatchVersion();
+        await this.getState({});
         console.log('Client is ready.');
         return true;
       } catch (e) {
-        console.log('Waiting for client to be ready...');
-        await new Promise(resolve => {
-          setTimeout(resolve, 1000);
-        });
+        await sleepInSeconds(1);
       }
     }
     throw new CustomError('League Client took too long to start.');
@@ -173,6 +171,10 @@ export class LeagueClientUx {
     return rawPatchData;
   }
 
+  async getState({ options = { retry: 0 } }: { options?: { retry: number } }): Promise<{ action: 'Idle' }> {
+    return await makeRequest('GET', '/lol-patch/v1/products/league_of_legends/state', null, options.retry);
+  }
+
   async getQueues() {
     return makeRequest('GET', 'lol-game-queues/v1/queues');
   }
@@ -184,5 +186,19 @@ export class LeagueClientUx {
       currentSummoner.tagLine,
       currentSummoner.puuid,
     );
+  }
+
+  async getLockfilePath(): Promise<string> {
+    const localAppData = process.env.LOCALAPPDATA;
+    return path.join(localAppData, 'Riot Games', 'League of Legends', 'lockfile');
+  }
+
+  async removeLockfile() {
+    try {
+      const lockfilePath = await this.getLockfilePath();
+      await promisify(fs.unlink)(lockfilePath);
+    } catch (e) {
+      // ignore
+    }
   }
 }

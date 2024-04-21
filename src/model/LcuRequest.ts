@@ -9,27 +9,33 @@ const limiter = new Bottleneck({
 });
 
 async function makeRequest(method: any, url: any, body: any = {}, retries: any = 3): Promise<any> {
-  const credentials = await authenticate();
-  const response = await limiter.schedule(() => {
-    return createHttp1Request(
-      {
-        method,
-        url,
-        body,
-      },
-      credentials,
-    );
-  });
-
-  if (!response.ok) {
-    await parseResponseForErrors(response, retries - 1);
-    console.log(`retrying. retries = ${retries - 1}`);
-    return await makeRequest(method, url, body, retries - 1);
-  }
   try {
-    return await response.json();
-  } catch (err) {
-    return response;
+    const response = await limiter.schedule(async () => {
+      const credentials = await authenticate();
+      return createHttp1Request(
+        {
+          method,
+          url,
+          body,
+        },
+        credentials,
+      );
+    });
+
+    if (!response.ok) {
+      await parseResponseForErrors(response, retries - 1);
+      return makeRequest(method, url, body, retries - 1);
+    }
+    try {
+      return await response.json();
+    } catch (err) {
+      return response;
+    }
+  } catch (e) {
+    if (retries <= 0) {
+      throw new Error(`Client Request Error: ${e.message}`);
+    }
+    return makeRequest(method, url, body, retries - 1);
   }
 }
 

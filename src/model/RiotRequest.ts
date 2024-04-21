@@ -18,33 +18,26 @@ async function makeRequest(
   retries: any = 3,
 ): Promise<any> {
   const newHeaders: any = { ...headers, 'Content-Type': 'application/json' };
-  const response = await limiter.schedule(() => {
-    return fetch(url, new RequestOptions(method, newHeaders, body));
-  });
-  if (!response.ok) {
-    await parseResponseForErrors(response, retries - 1);
-    console.log(`retrying. retries = ${retries - 1}`);
-    return await makeRequest(method, url, headers, body, retries - 1);
-  }
   try {
-    return await response.json();
-  } catch (err) {
+    const response = await limiter.schedule(() => {
+      return fetch(url, new RequestOptions(method, newHeaders, body));
+    });
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        throw new CustomError('Failed to find the requested resource.');
+      }
+      return makeRequest(method, url, headers, body, retries - 1);
+    }
+
     return response;
+  } catch (e) {
+    if (retries <= 0) {
+      throw new Error(`Client Request Error: ${e.message}`);
+    }
+    return makeRequest(method, url, headers, body, retries - 1);
   }
 }
-
-async function parseResponseForErrors(response: any, retries: any) {
-  if (response.status === 404) {
-    throw new CustomError('Failed to find the requested resource.');
-  }
-
-  if (retries <= 0) {
-    throw new Error(
-      `Client Request Error: ${response.status} ${response.statusText} - ${await response.text()}`,
-    );
-  }
-}
-
 class RequestOptions {
   body: any;
 

@@ -6,11 +6,23 @@ import { makeRequest } from '../model/RiotRequest';
 import { sleepInSeconds } from '../utils/utils';
 import { RiotTypes } from '../model/RiotTypes';
 import { Locale } from '../model/Locale';
+import { promisify } from 'util';
 
 const rcsExePath = `"C:\\Riot Games\\Riot Client\\RiotClientServices.exe"`;
 
+async function waitToExistsFile(filePath: string, timeout: number = 10000) {
+  const start = Date.now();
+  while (!fs.existsSync(filePath)) {
+    if (Date.now() - start > timeout) {
+      throw new Error('File not found');
+    }
+    await sleepInSeconds(1)
+  }
+}
+
 async function invokeRiotRequest(lockfile: string, path: string, method: string = 'GET', body: any = null, retry: number = 3): Promise<any> {
-  const lockContent = fs.readFileSync(lockfile, { encoding: 'utf8' }).split(':');
+  await waitToExistsFile(lockfile, 10000);
+  const lockContent = (await promisify(fs.readFile)(lockfile, { encoding: 'utf8' })).split(':');
   const port = lockContent[2];
   const password = lockContent[3];
   const auth = Buffer.from(`riot:${password}`).toString('base64');
@@ -47,23 +59,16 @@ export class RiotGameClient {
   }
 
   async login(username: string, password: string) {
-    for(let i = 0; i < 20; i++) {
-      try {
-        return await invokeRiotRequest(
-          await this.getLockfilePath(),
-          '/rso-auth/v1/authorization/gas',
-          'POST',
-          {
-            username,
-            password,
-          },
-          1,
-        );
-      } catch(e) {
-        await sleepInSeconds(2);
-        continue;
-      }
-    }
+    return await invokeRiotRequest(
+      await this.getLockfilePath(),
+      '/rso-auth/v1/authorization/gas',
+      'POST',
+      {
+        username,
+        password,
+      },
+      30,
+    );
   }
 
   async getState(): Promise<{ action: string }> {
@@ -72,25 +77,18 @@ export class RiotGameClient {
       '/lol-patch/v1/products/league_of_legends/state',
       'GET',
       null,
-      60,
+      0,
     );
   }
 
   async getInstalls(): Promise<any> {
-    for(let i = 0; i < 10; i++) {
-      try {
-      return await invokeRiotRequest(
-        await this.getLockfilePath(),
-        '/patch/v1/installs',
-        'GET',
-        null,
-        0,
-      );
-      } catch(e) {
-        await sleepInSeconds(1);
-        continue;
-      }
-    }
+    return await invokeRiotRequest(
+      await this.getLockfilePath(),
+      '/patch/v1/installs',
+      'GET',
+      null,
+      30,
+    );
   }
 
   async getClientPath(): Promise<string[]> {
@@ -101,6 +99,15 @@ export class RiotGameClient {
       }
     }
     return [];
+  }
+
+  async removeLockfile() {
+    try {
+      const lockfilePath = await this.getLockfilePath();
+      await promisify(fs.unlink)(lockfilePath);
+    }catch (e) {
+      // ignore
+    }
   }
 
   async getLockfilePath(): Promise<string> {
@@ -123,6 +130,7 @@ export class RiotGameClient {
           `--launch-patchline=live`,
           `--region=${region.toUpperCase()}`,
           `--locale=${locale}`,
+          '--skip-to-install',
         ],
         { shell: true });
 
@@ -140,20 +148,29 @@ export class RiotGameClient {
     await new RiotGameClient().getInstalls();
   };
 
-  async waitToBeReady() {
-      for (let i = 0; i < 60; i++) {
-        try {
-          if (await this.isRunning()) {
-            console.log('Riot Client Services is running.');
-            return;
-          }
-        } catch (e) {
-          console.log('Riot Client Services is not running yet.');
+  async waitToPatch() {
+    for (let i = 0; i < 60; i++) {
+      try {
+        const status = await invokeRiotRequest(
+          await this.getLockfilePath(),
+          '/patch/v1/installs/league_of_legends/status',
+          'GET',
+          null,
+          0,
+        );
+
+        if (status.patch.state === 'up_to_date') {
+          break;
         }
-        await new Promise((resolve) => {
-          setTimeout(resolve, 1000);
-        });
+
+        console.log(`Installing LoL: ${status.patch.progress.progress}%`);
       }
+      catch (e) {
+        console.log('Failed to get patch status:', e);
+      }
+      await sleepInSeconds(1);
+    }
+
   }
 }
 
