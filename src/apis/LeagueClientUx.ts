@@ -36,7 +36,7 @@ export class LeagueClientUx {
   async waitForClientToBeReady() {
     for(let i = 0; i < 30; i++) {
       try {
-        await this.getState();
+        await this.getState({});
         console.log('Client is ready.');
         return true;
       } catch (e) {
@@ -171,8 +171,8 @@ export class LeagueClientUx {
     return rawPatchData;
   }
 
-  async getState() {
-    return await makeRequest('GET', '/lol-patch/v1/products/league_of_legends/state', null, 60);
+  async getState({ options = { retry: 0 } }: { options?: { retry: number } }) {
+    return await makeRequest('GET', '/lol-patch/v1/products/league_of_legends/state', null, options.retry);
   }
 
   async getQueues() {

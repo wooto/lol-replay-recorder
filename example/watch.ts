@@ -29,10 +29,12 @@ for (const locale of locale_list) {
   await new RiotGameClient().startRiotClient(region as any, locale);
   await new RiotGameClient().login(username, password);
   await sleepInSeconds(10);
-  await new LeagueClientUx().startClient({ region, locale: locale });
-  console.log('Started client');
-  console.log('Logged in');
-  await new LeagueClientUx().getState();
+  for(let i = 0; i < 5; i++) {
+    console.log('Started client');
+    await new LeagueClientUx().startClient({ region, locale: locale });
+    console.log('Waiting for client to be ready');
+    await new LeagueClientUx().getState({ options: { retry: 10 } });
+  }
   console.log('Client is running');
   await sleepInSeconds(5);
   console.log('Waiting for 5 seconds');
