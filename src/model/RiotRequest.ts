@@ -32,13 +32,7 @@ async function makeRequest(
     }
 
     console.dir(response, { depth: null })
-    try {
-      console.log(`Response from ${url} ${retries}`)
-      return await response.json();
-    } catch (err) {
-      return response;
-    }
-
+    return response;
   } catch (e) {
     if (retries <= 0) {
       throw new Error(`Client Request Error: ${e.message}`);
