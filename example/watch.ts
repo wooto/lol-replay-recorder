@@ -35,7 +35,9 @@ for (const locale of locale_list) {
     } catch (e) {
       console.log('Failed to start client:', e);
       await sleepInSeconds(1);
+      continue;
     }
+    throw new Error('Failed to start client');
   }
   console.log('Client is running');
   await sleepInSeconds(5);
