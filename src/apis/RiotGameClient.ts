@@ -82,20 +82,13 @@ export class RiotGameClient {
   }
 
   async getInstalls(): Promise<any> {
-    for(let i = 0; i < 10; i++) {
-      try {
-      return await invokeRiotRequest(
-        await this.getLockfilePath(),
-        '/patch/v1/installs',
-        'GET',
-        null,
-        0,
-      );
-      } catch(e) {
-        await sleepInSeconds(1);
-        continue;
-      }
-    }
+    return await invokeRiotRequest(
+      await this.getLockfilePath(),
+      '/patch/v1/installs',
+      'GET',
+      null,
+      30,
+    );
   }
 
   async getClientPath(): Promise<string[]> {

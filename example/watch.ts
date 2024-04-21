@@ -19,6 +19,7 @@ for (const locale of locale_list) {
   console.log('Client started');
   await new RiotGameClient().login(username, password);
   console.log('Logged in');
+  await new RiotGameClient().getInstalls();
   await new LeagueClientUx().getState();
   console.log('Client is running');
   await sleepInSeconds(5);
