@@ -130,6 +130,7 @@ export class RiotGameClient {
           `--launch-patchline=live`,
           `--region=${region.toUpperCase()}`,
           `--locale=${locale}`,
+          '--skip-to-install',
         ],
         { shell: true });
 
