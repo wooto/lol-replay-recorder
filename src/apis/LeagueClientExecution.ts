@@ -6,6 +6,8 @@ import ini from 'ini';
 import path from 'node:path';
 import { getActiveWindow, getWindows, mouse } from '@nut-tree/nut-js';
 import { sleepInSeconds } from '../utils/utils';
+import { RiotGameClient } from './RiotGameClient';
+import { LeagueClientUx } from './LeagueClientUx';
 
 const execAsync = promisify(exec);
 
@@ -43,6 +45,8 @@ export class LeagueClientExecution {
         }
       }
     }
+    await new RiotGameClient().removeLockfile();
+    await new LeagueClientUx().removeLockfile();
 
     console.log('Riot and League processes have been stopped.');
 

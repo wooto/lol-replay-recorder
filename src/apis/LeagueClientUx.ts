@@ -4,6 +4,9 @@ import { makeRequest } from '../model/LcuRequest';
 import Summoner from '../model/Summoner';
 import { sleepInSeconds } from '../utils/utils';
 import { Locale } from '../model/Locale';
+import path from 'node:path';
+import { promisify } from 'util';
+import * as fs from 'fs';
 
 const rcuExePath = `"C:\\Riot Games\\League of Legends\\LeagueClient.exe"`;
 
@@ -183,5 +186,19 @@ export class LeagueClientUx {
       currentSummoner.tagLine,
       currentSummoner.puuid,
     );
+  }
+
+  async getLockfilePath(): Promise<string> {
+    const localAppData = process.env.LOCALAPPDATA;
+    return path.join(localAppData, 'Riot Games', 'League of Legends', 'lockfile');
+  }
+
+  async removeLockfile() {
+    try {
+      const lockfilePath = await this.getLockfilePath();
+      await promisify(fs.unlink)(lockfilePath);
+    } catch (e) {
+      // ignore
+    }
   }
 }
