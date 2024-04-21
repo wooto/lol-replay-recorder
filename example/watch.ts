@@ -13,7 +13,6 @@ for (const locale of locale_list) {
   console.log('Starting client with locale:', locale)
   const region = 'na1';
   await new LeagueClientExecution().stopRiotProcesses();
-  await new RiotGameClient().removeLockfile();
 
   await new LeagueClientUx().startClient({ region, locale: locale });
   console.log('Client started');
