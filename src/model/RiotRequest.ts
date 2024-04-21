@@ -21,7 +21,7 @@ async function makeRequest(
   const response = await limiter.schedule(async () => {
     try {
       console.log(`Making request to ${url}`)
-      return fetch(url, new RequestOptions(method, newHeaders, body));
+      return await fetch(url, new RequestOptions(method, newHeaders, body));
     } catch (e) { /* empty */
       console.log(`Error making request to ${url}`)
     }
