@@ -19,7 +19,11 @@ async function makeRequest(
 ): Promise<any> {
   const newHeaders: any = { ...headers, 'Content-Type': 'application/json' };
   const response = await limiter.schedule(() => {
-    return fetch(url, new RequestOptions(method, newHeaders, body));
+    try {
+      return fetch(url, new RequestOptions(method, newHeaders, body));
+    } catch (e) {
+      return { ok: false };
+    }
   });
   if (!response.ok) {
     await parseResponseForErrors(response, retries - 1);
