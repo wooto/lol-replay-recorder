@@ -149,7 +149,7 @@ export class RiotGameClient {
       try {
         const status = await invokeRiotRequest(
           await this.getLockfilePath(),
-          '/patch/v1/installs/league_of_legends/status',
+          '/patch/v1/installs/league_of_legends.live/status',
           'GET',
           null,
           0,
