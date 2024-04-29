@@ -142,10 +142,11 @@ export class RiotGameClient {
     });
 
     await new RiotGameClient().getInstalls();
+    await this.waitToPatch();
   };
 
   async waitToPatch() {
-    for (let i = 0; i < 60; i++) {
+    for (let i = 0; i < 300; i++) {
       try {
         const status = await invokeRiotRequest(
           await this.getLockfilePath(),
