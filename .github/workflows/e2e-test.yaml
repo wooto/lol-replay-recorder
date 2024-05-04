@@ -48,5 +48,4 @@ jobs:
           region: KR
 
       - name: Test
-        run: npm run test:e2e
-
+        run: yarn test:e2e
