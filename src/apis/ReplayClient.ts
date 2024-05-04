@@ -1,10 +1,11 @@
 import CustomError from '../model/CustomError';
 import { makeRequest } from '../model/RiotRequest';
 import _ from 'lodash';
-import { Key, keyboard } from '@nut-tree/nut-js';
+import { keyboard } from '@nut-tree/monorepo/core/nut.js';
 import { sleepInSeconds } from '../utils/utils';
 import { ReplayType } from '../model/ReplayType';
 import { LeagueClientExecution } from './LeagueClientExecution';
+import { Key } from '@nut-tree/monorepo/providers/libnut/libnut';
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 

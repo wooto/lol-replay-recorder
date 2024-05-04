@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs';
 import { readFile, writeFile } from 'fs/promises';
 import ini from 'ini';
 import path from 'node:path';
-import { getActiveWindow, getWindows, mouse } from '@nut-tree/nut-js';
+import { getActiveWindow, getWindows, mouse } from '@nut-tree/monorepo/core/nut.js';
 import { sleepInSeconds } from '../utils/utils';
 import { RiotGameClient } from './RiotGameClient';
 import { LeagueClientUx } from './LeagueClientUx';
