@@ -48,5 +48,5 @@ jobs:
           region: NA
 
       - name: Test
-        run: npm run test:e2e
+        run: npm run test:e2e:lcu
 

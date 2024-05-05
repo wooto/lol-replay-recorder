@@ -21,7 +21,9 @@
     "lint-check": "eslint .",
     "start": "node --loader ts-node/esm",
     "test": "mocha --timeout 5000 --exit -r ts-node/register 'test/**/*.ts'",
-    "test:e2e": "mocha --timeout 5000 --exit  -r ts-node/register 'test/e2e/*.ts'",
+    "test:e2e": "mocha --timeout 5000 --exit  -r ts-node/register 'test/e2e/**.ts'",
+    "test:e2e:lcu": "mocha --timeout 5000 --exit  -r ts-node/register 'test/e2e/lcu/*.ts'",
+    "test:e2e:win": "mocha --timeout 5000 --exit  -r ts-node/register 'test/e2e/win/*.ts'",
     "test:unit": "mocha --timeout 5000 --exit --parallel -r ts-node/register 'test/unit/*.ts'"
   },
   "devDependencies": {

@@ -1,7 +1,7 @@
 import { expect } from 'chai';
-import { LeagueClientExecution, RiotGameClient } from '../../src';
-import { RiotTypes } from '../../src/model/RiotTypes';
-import { Locale } from '../../src/model/Locale';
+import { LeagueClientExecution, RiotGameClient } from '../../../src';
+import { RiotTypes } from '../../../src/model/RiotTypes';
+import { Locale } from '../../../src/model/Locale';
 import PlatformId = RiotTypes.PlatformId;
 
 describe('RiotGameClient', () => {
