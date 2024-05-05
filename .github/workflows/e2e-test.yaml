@@ -41,7 +41,7 @@ jobs:
 
       - name: Setup League Client
         id: league-client
-        uses: magisteriis/setup-league-client@c44f92c2c531595011b5b845474187f160eaedd7
+        uses: magisteriis/setup-league-client@v1
         with:
           username: ${{ secrets.LOL_USERNAME }}
           password: ${{ secrets.LOL_PASSWORD }}
