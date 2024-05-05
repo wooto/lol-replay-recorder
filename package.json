@@ -47,9 +47,9 @@
   },
   "dependencies": {
     "@fightmegg/riot-api": "^0.0.19",
-    "@nut-tree/nut-js": "^4.0.1-next.20240319201406",
     "ini": "^4.1.2",
     "league-connect": "^6.0.0-rc12",
-    "lodash": "^4.17.21"
+    "lodash": "^4.17.21",
+    "robotjs": "^0.6.0"
   }
 }
