@@ -1,7 +1,7 @@
 import CustomError from '../model/CustomError';
 import { makeRequest } from '../model/RiotRequest';
 import _ from 'lodash';
-import * as robot from '@jitsi/robotjs';
+import robotjs from '@jitsi/robotjs';
 import { sleepInSeconds } from '../utils/utils';
 import { ReplayType } from '../model/ReplayType';
 import { LeagueClientExecution } from './LeagueClientExecution';
@@ -156,16 +156,17 @@ export class ReplayClient {
 
   async focusBySummonerName(targetSummonerName: string) {
     const position = await this.getInGamePositionBySummonerName(targetSummonerName);
+    console.log('position', position)
     const keyboardKey = [
       ...['1', '2', '3', '4', '5'],
-      ...['Q', 'W', 'E', 'R', 'T'],
+      ...['q', 'w', 'e', 'r', 't'],
     ][position];
 
     const execution = new LeagueClientExecution();
     for (let i = 0; i < 10; i++) {
       await execution.focusClientWindow();
       for (let j = 0; j < 50; j++) {
-        robot.keyTap(keyboardKey);
+        robotjs.keyTap(keyboardKey);
         await sleepInSeconds(0.2);
       }
       await sleepInSeconds(10);
@@ -175,5 +176,4 @@ export class ReplayClient {
       }
     }
   }
-
 }
