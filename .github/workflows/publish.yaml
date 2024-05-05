@@ -8,6 +8,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Install Python 2.7 required for node-gyp
+        run: |
+          sudo apt-get install python2
+          sudo ln -s /usr/bin/python2 /usr/bin/python
       - run: apt-get install libxtst-dev
       - uses: actions/setup-node@v4
         with:
