@@ -1,6 +1,6 @@
 {
   "name": "@wooto/lol-replay-recorder",
-  "version": "0.0.56",
+  "version": "0.0.57",
   "type": "module",
   "types": "dist/index.d.ts",
   "module": "dist/index.js",
@@ -50,7 +50,7 @@
   },
   "dependencies": {
     "@fightmegg/riot-api": "^0.0.19",
-    "@jitsi/robotjs": "^0.6.13",
+    "@kirillvakalov/nut-tree__nut-js": "^4.2.1-2",
     "ffi-napi": "^4.0.3",
     "ini": "^4.1.2",
     "league-connect": "^6.0.0-rc12",

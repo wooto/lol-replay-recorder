@@ -1,10 +1,10 @@
 import CustomError from '../model/CustomError';
 import { makeRequest } from '../model/RiotRequest';
 import _ from 'lodash';
-import robotjs from '@jitsi/robotjs';
 import { sleepInSeconds } from '../utils/utils';
 import { ReplayType } from '../model/ReplayType';
 import { LeagueClientExecution } from './LeagueClientExecution';
+import { Key, keyboard } from '@kirillvakalov/nut-tree__nut-js';
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
@@ -153,20 +153,18 @@ export class ReplayClient {
     throw new CustomError('Summoner not found in game');
   }
 
-
   async focusBySummonerName(targetSummonerName: string) {
     const position = await this.getInGamePositionBySummonerName(targetSummonerName);
-    console.log('position', position)
     const keyboardKey = [
-      ...['1', '2', '3', '4', '5'],
-      ...['q', 'w', 'e', 'r', 't'],
+      ...[Key.Num1, Key.Num2, Key.Num3, Key.Num4, Key.Num5],
+      ...[Key.Q, Key.W, Key.E, Key.R, Key.T],
     ][position];
 
     const execution = new LeagueClientExecution();
     for (let i = 0; i < 10; i++) {
       await execution.focusClientWindow();
       for (let j = 0; j < 50; j++) {
-        robotjs.keyTap(keyboardKey);
+        await keyboard.type(keyboardKey);
         await sleepInSeconds(0.2);
       }
       await sleepInSeconds(10);

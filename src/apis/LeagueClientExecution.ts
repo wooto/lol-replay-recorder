@@ -8,6 +8,7 @@ import { sleepInSeconds } from '../utils/utils';
 import { RiotGameClient } from './RiotGameClient';
 import { LeagueClientUx } from './LeagueClientUx';
 import { Locale } from '../model/Locale';
+import { getActiveWindow, getWindows, mouse } from '@kirillvakalov/nut-tree__nut-js';
 
 const execAsync = promisify(exec);
 
@@ -147,38 +148,29 @@ export class LeagueClientExecution {
 
 
   async focusClientWindow(): Promise<void> {
-    // const isWindows = process.platform === 'win32';
-    // const targetWindowTitle = isWindows ? 'League of Legends (TM) Client' : 'League of Legends';
-    // const windows = await getWindows();
-    // for (const window of windows) {
-    //   if ((await window.getTitle()).includes(targetWindowTitle)) {
-    //     for (let i = 0; i < 10; i++) {
-    //       await window.focus();
-    //       const region = await window.getRegion();
-    //       await mouse.move([
-    //         {
-    //           x: (region.left + region.width) / 2,
-    //           y: (region.top + region.height) / 2,
-    //         },
-    //       ]);
-    //       await mouse.leftClick();
-    //       if ((await (await getActiveWindow()).getTitle()) === (await window.getTitle())) {
-    //         return;
-    //       }
-    //       await sleepInSeconds(Math.min(2 ** i, 4));
-    //     }
-    //   }
-    // }
-    //
-    // return new Promise((resolve, reject) => {
-    //   exec(`wmctrl -a "${targetWindowTitle}"`, (error, stdout, stderr) => {
-    //     if (error) {
-    //       reject(error);
-    //     } else {
-    //       resolve();
-    //     }
-    //   });
-    // });
-    return null;
+    const isWindows = process.platform === 'win32';
+    const targetWindowTitle = isWindows ? 'League of Legends (TM) Client' : 'League of Legends';
+    const windows = await getWindows();
+    for (const window of windows) {
+      if ((await window.getTitle()).includes(targetWindowTitle)) {
+        for (let i = 0; i < 10; i++) {
+          await window.focus();
+          const region = await window.getRegion();
+          await mouse.move([
+            {
+              x: (region.left + region.width) / 2,
+              y: (region.top + region.height) / 2,
+            },
+          ]);
+          await mouse.leftClick();
+          if ((await (await getActiveWindow()).getTitle()) === (await window.getTitle())) {
+            return;
+          }
+          await sleepInSeconds(Math.min(2 ** i, 4));
+        }
+      }
+    }
+
+    throw new Error('Cannot find League of Legends window');
   }
 }
