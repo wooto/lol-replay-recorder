@@ -8,11 +8,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - run: sudo apt-get install libxtst-dev libpng++-dev
       - name: Install Python 2.7 required for node-gyp
         run: |
           sudo apt-get install python2
           sudo ln -s /usr/bin/python2 /usr/bin/python
-      - run: sudo apt-get install libxtst-dev libpng++-dev
       - uses: actions/setup-node@v4
         with:
           node-version: '20.x'
