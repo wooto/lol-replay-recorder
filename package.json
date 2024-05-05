@@ -27,6 +27,7 @@
   "devDependencies": {
     "@tsconfig/node20": "^20.1.2",
     "@types/chai": "^4.3.13",
+    "@types/ffi-napi": "^4.0.10",
     "@types/ini": "^4.1.0",
     "@types/lodash": "^4.17.0",
     "@types/mocha": "^10.0.6",
@@ -48,6 +49,7 @@
   "dependencies": {
     "@fightmegg/riot-api": "^0.0.19",
     "@jitsi/robotjs": "^0.6.13",
+    "ffi-napi": "^4.0.3",
     "ini": "^4.1.2",
     "league-connect": "^6.0.0-rc12",
     "lodash": "^4.17.21"
