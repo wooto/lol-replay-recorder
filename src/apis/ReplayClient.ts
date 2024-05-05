@@ -1,7 +1,7 @@
 import CustomError from '../model/CustomError';
 import { makeRequest } from '../model/RiotRequest';
 import _ from 'lodash';
-import * as robot from 'robotjs';
+import * as robot from '@jitsi/robotjs';
 import { sleepInSeconds } from '../utils/utils';
 import { ReplayType } from '../model/ReplayType';
 import { LeagueClientExecution } from './LeagueClientExecution';

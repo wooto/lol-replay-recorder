@@ -47,9 +47,9 @@
   },
   "dependencies": {
     "@fightmegg/riot-api": "^0.0.19",
+    "@jitsi/robotjs": "^0.6.13",
     "ini": "^4.1.2",
     "league-connect": "^6.0.0-rc12",
-    "lodash": "^4.17.21",
-    "jitsi/robotjs": "^0.6.13"
+    "lodash": "^4.17.21"
   }
 }
