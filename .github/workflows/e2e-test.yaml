@@ -36,9 +36,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-node-
 
-      - name: Install Windows Build Tools
-        run: npm install --global windows-build-tools
-
       - name: Install Dependencies
         run: npm ci
 
