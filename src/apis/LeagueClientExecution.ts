@@ -148,8 +148,7 @@ export class LeagueClientExecution {
 
 
   async focusClientWindow(): Promise<void> {
-    const isWindows = process.platform === 'win32';
-    const targetWindowTitle = isWindows ? 'League of Legends (TM) Client' : 'League of Legends';
+    const targetWindowTitle = 'League of Legends';
     const windows = await getWindows();
     for (const window of windows) {
       if ((await window.getTitle()).includes(targetWindowTitle)) {
