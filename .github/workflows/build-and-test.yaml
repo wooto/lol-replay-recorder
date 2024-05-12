@@ -16,7 +16,7 @@ jobs:
   build-and-test:
     strategy:
       matrix:
-        os: [windows-latest]
+        os: [windows-latest, ubuntu-latest]
         version: [18.x, 20.x]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10
