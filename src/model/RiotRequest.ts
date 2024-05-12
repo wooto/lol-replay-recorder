@@ -37,7 +37,7 @@ async function makeRequest(
     }
   } catch (e) {
     if (retries <= 0) {
-      throw new Error(`Client Request Error: ${e.message}`);
+      throw new Error(`Client Request Error: ${url}, ${e.message}`);
     }
     return makeRequest(method, url, headers, body, retries - 1);
   }
