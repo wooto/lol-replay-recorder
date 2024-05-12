@@ -113,7 +113,7 @@ export class LeagueClientUx {
   }
 
   async downloadReplay(matchId: any) {
-    await makeRequest('POST', `/lol-replays/v1/rofls/${matchId}/download`, {}, null);
+    await makeRequest('POST', `/lol-replays/v1/rofls/${matchId}/download`, {}, 10);
     return await this.waitForReplayDownloadToComplete(matchId);
   }
 
@@ -131,12 +131,9 @@ export class LeagueClientUx {
     } while (downloadState !== completed);
   }
 
-  async launchReplay(matchId: any) {
+  async launchReplay(matchId: string) {
     await this.downloadReplay(matchId);
-    for(let i = 0; i < 10; i++) {
-      await makeRequest('POST', `/lol-replays/v1/rofls/${matchId}/watch`, {});
-      await sleepInSeconds(1);
-    }
+    await makeRequest('POST', `/lol-replays/v1/rofls/${matchId}/watch`, {}, 10);
   }
 
   /// MATCH REQUESTS ///
