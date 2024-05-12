@@ -15,7 +15,7 @@ async function makeRequest(
   url: any,
   headers: any = null,
   body: any = null,
-  retries: any = 3,
+  retries: any = 5,
 ): Promise<any> {
   const newHeaders: any = { ...headers, 'Content-Type': 'application/json' };
   try {
