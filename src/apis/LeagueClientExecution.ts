@@ -54,6 +54,7 @@ export class LeagueClientExecution {
       'Riot Client.exe',
       'LeagueClient.exe',
       'League of Legends.exe',
+      'LeagueClientUxRender.exe',
     ];
     for(const process of prcoesses) {
       try{
@@ -82,8 +83,7 @@ export class LeagueClientExecution {
 
 
   };
-
-  async findWindowsInstalled(): Promise<string[]> {
+async findWindowsInstalled(): Promise<string[]> {
     const paths = ['C:\\Riot Games\\League of Legends'];
     for (const path of paths) {
       if (existsSync(path)) {
