@@ -148,7 +148,7 @@ async findWindowsInstalled(): Promise<string[]> {
 
 
   async focusClientWindow(): Promise<void> {
-    const targetWindowTitle = 'League of Legends';
+    const targetWindowTitle = 'League of Legends (TM)';
     const windows = await getWindows();
     for (const window of windows) {
       if ((await window.getTitle()).includes(targetWindowTitle)) {
