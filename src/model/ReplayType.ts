@@ -16,6 +16,7 @@ export namespace ReplayType {
     isDead: boolean;
     items: Item[];
     level: number;
+    riotIdGameName: string;
     position: string;
     rawChampionName: string;
     rawSkinName: string;

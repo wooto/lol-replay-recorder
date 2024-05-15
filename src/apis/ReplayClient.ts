@@ -135,7 +135,7 @@ export class ReplayClient {
     });
 
     const orderIndex = _.findIndex(orderTeam, it => {
-      return it.summonerName === summonerName;
+      return it.riotIdGameName === summonerName;
     });
 
     if (orderIndex !== -1) {
@@ -143,7 +143,7 @@ export class ReplayClient {
     }
 
     const chaosIndex = _.findIndex(chaosTeam, it => {
-      return it.summonerName === summonerName;
+      return it.riotIdGameName === summonerName;
     });
 
     if (chaosIndex !== -1) {
