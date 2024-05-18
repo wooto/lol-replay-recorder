@@ -9,12 +9,13 @@ import { RiotGameClient } from './RiotGameClient';
 import { LeagueClientUx } from './LeagueClientUx';
 import { Locale } from '../model/Locale';
 import { getActiveWindow, getWindows, mouse } from '@kirillvakalov/nut-tree__nut-js';
+import { RiotTypes } from '../model/RiotTypes';
 
 const execAsync = promisify(exec);
 
 export class LeagueClientExecution {
   async startRiotProcessesSafely(params: {
-    region: string,
+    region: RiotTypes.Region,
     locale: Locale,
     username: string,
     password: string,

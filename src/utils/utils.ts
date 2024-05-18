@@ -1,3 +1,5 @@
+import { RiotTypes } from "../model/RiotTypes";
+
 function sleep(ms: any) {
   if (ms <= 0) {
     return;
@@ -104,6 +106,10 @@ const convertFilePath = (path: string) => {
   return path.replace(/\//g, '\\');
 };
 
+const refineRegion = (region: RiotTypes.Region) => {
+  return region.replace(/\d/g, '');
+}
+
 export {
   sleep,
   sleepInSeconds,
@@ -118,4 +124,5 @@ export {
   getRiotId,
   convertFilePath,
   convertSecondsToHMS,
+  refineRegion,
 };

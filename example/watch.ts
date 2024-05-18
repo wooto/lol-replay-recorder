@@ -20,7 +20,7 @@ console.log('password:', password);
 // }
 
 await new LeagueClientExecution().startRiotProcessesSafely({
-  region: 'na' as any,
+  region: 'kr' as any,
   locale: Locale.ko_KR,
   username,
   password,
