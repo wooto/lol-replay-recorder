@@ -15,7 +15,7 @@ async function makeRequest(
   url: any,
   headers: any = null,
   body: any = null,
-  retries: any = 3,
+  retries: any = 5,
 ): Promise<any> {
   if(retries < 0) {
     throw new Error('Client Request Error: Max retries exceeded');
@@ -41,7 +41,7 @@ async function makeRequest(
     }
   } catch (e) {
     if (retries <= 0) {
-      throw new Error(`Client Request Error: ${e.message}`);
+      throw new Error(`Client Request Error: ${url}, ${e.message}`);
     }
     return makeRequest(method, url, headers, body, retries - 1);
   }

@@ -3,7 +3,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import * as fs from 'fs';
 import { makeRequest } from '../model/RiotRequest';
-import { sleepInSeconds } from '../utils/utils';
+import { refineRegion, sleepInSeconds } from '../utils/utils';
 import { RiotTypes } from '../model/RiotTypes';
 import { Locale } from '../model/Locale';
 import { promisify } from 'util';
@@ -118,13 +118,14 @@ export class RiotGameClient {
   };
 
 
-  async startRiotClient(region: RiotTypes.PlatformId, locale: Locale): Promise<void> {
+  async startRiotClient(region: RiotTypes.Region, locale: Locale): Promise<void> {
+    const refinedRegion = refineRegion(region);
     new Promise((resolve, reject) => {
       const process = spawn(rcsExePath,
         [
           '--launch-product=league_of_legends',
           `--launch-patchline=live`,
-          `--region=${region.toUpperCase()}`,
+          `--region=${refinedRegion.toUpperCase()}`,
           `--locale=${locale}`,
           '--skip-to-install',
         ],

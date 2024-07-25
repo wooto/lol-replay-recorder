@@ -1,10 +1,10 @@
 import CustomError from '../model/CustomError';
 import { makeRequest } from '../model/RiotRequest';
 import _ from 'lodash';
-import { Key, keyboard } from '@nut-tree/nut-js';
 import { sleepInSeconds } from '../utils/utils';
 import { ReplayType } from '../model/ReplayType';
 import { LeagueClientExecution } from './LeagueClientExecution';
+import { Key, keyboard } from '@kirillvakalov/nut-tree__nut-js';
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
@@ -135,7 +135,7 @@ export class ReplayClient {
     });
 
     const orderIndex = _.findIndex(orderTeam, it => {
-      return it.summonerName === summonerName;
+      return it.riotIdGameName === summonerName;
     });
 
     if (orderIndex !== -1) {
@@ -143,7 +143,7 @@ export class ReplayClient {
     }
 
     const chaosIndex = _.findIndex(chaosTeam, it => {
-      return it.summonerName === summonerName;
+      return it.riotIdGameName === summonerName;
     });
 
     if (chaosIndex !== -1) {
@@ -152,7 +152,6 @@ export class ReplayClient {
 
     throw new CustomError('Summoner not found in game');
   }
-
 
   async focusBySummonerName(targetSummonerName: string) {
     const position = await this.getInGamePositionBySummonerName(targetSummonerName);
@@ -175,5 +174,4 @@ export class ReplayClient {
       }
     }
   }
-
 }

@@ -2,11 +2,12 @@ import { spawn } from 'node:child_process';
 import CustomError from '../model/CustomError';
 import { makeRequest } from '../model/LcuRequest';
 import Summoner from '../model/Summoner';
-import { sleepInSeconds } from '../utils/utils';
+import { refineRegion, sleepInSeconds } from '../utils/utils';
 import { Locale } from '../model/Locale';
 import path from 'node:path';
 import { promisify } from 'util';
 import * as fs from 'fs';
+import { RiotTypes } from '../model/RiotTypes';
 
 const rcuExePath = `"C:\\Riot Games\\League of Legends\\LeagueClient.exe"`;
 
@@ -19,15 +20,15 @@ export class LeagueClientUx {
 
   // LeagueClient.exe
   async startClient(params: {
-    region: string,
+    region: RiotTypes.Region,
     locale: Locale
   } = {
-    region: 'na1',
+    region: RiotTypes.PlatformId.NA1,
     locale: Locale.en_US,
   }) {
     spawn(rcuExePath,
       [
-        `--region=${params.region.toUpperCase()}`,
+        `--region=${refineRegion(params.region).toUpperCase()}`,
         `--locale=${params.locale}`,
       ],
       { shell: true });
@@ -113,7 +114,7 @@ export class LeagueClientUx {
   }
 
   async downloadReplay(matchId: any) {
-    await makeRequest('POST', `/lol-replays/v1/rofls/${matchId}/download`, {}, null);
+    await makeRequest('POST', `/lol-replays/v1/rofls/${matchId}/download`, {}, 10);
     return await this.waitForReplayDownloadToComplete(matchId);
   }
 
@@ -131,12 +132,9 @@ export class LeagueClientUx {
     } while (downloadState !== completed);
   }
 
-  async launchReplay(matchId: any) {
+  async launchReplay(matchId: string) {
     await this.downloadReplay(matchId);
-    for(let i = 0; i < 10; i++) {
-      await makeRequest('POST', `/lol-replays/v1/rofls/${matchId}/watch`, {});
-      await sleepInSeconds(1);
-    }
+    await makeRequest('POST', `/lol-replays/v1/rofls/${matchId}/watch`, {}, 10);
   }
 
   /// MATCH REQUESTS ///

@@ -4,17 +4,18 @@ import { existsSync } from 'node:fs';
 import { readFile, writeFile } from 'fs/promises';
 import ini from 'ini';
 import path from 'node:path';
-import { getActiveWindow, getWindows, mouse } from '@nut-tree/nut-js';
 import { sleepInSeconds } from '../utils/utils';
 import { RiotGameClient } from './RiotGameClient';
 import { LeagueClientUx } from './LeagueClientUx';
 import { Locale } from '../model/Locale';
+import { getActiveWindow, getWindows, mouse } from '@kirillvakalov/nut-tree__nut-js';
+import { RiotTypes } from '../model/RiotTypes';
 
 const execAsync = promisify(exec);
 
 export class LeagueClientExecution {
   async startRiotProcessesSafely(params: {
-    region: string,
+    region: RiotTypes.Region,
     locale: Locale,
     username: string,
     password: string,
@@ -54,6 +55,7 @@ export class LeagueClientExecution {
       'Riot Client.exe',
       'LeagueClient.exe',
       'League of Legends.exe',
+      'LeagueClientUxRender.exe',
     ];
     for(const process of prcoesses) {
       try{
@@ -82,8 +84,7 @@ export class LeagueClientExecution {
 
 
   };
-
-  async findWindowsInstalled(): Promise<string[]> {
+async findWindowsInstalled(): Promise<string[]> {
     const paths = ['C:\\Riot Games\\League of Legends'];
     for (const path of paths) {
       if (existsSync(path)) {
@@ -148,8 +149,7 @@ export class LeagueClientExecution {
 
 
   async focusClientWindow(): Promise<void> {
-    const isWindows = process.platform === 'win32';
-    const targetWindowTitle = isWindows ? 'League of Legends (TM) Client' : 'League of Legends';
+    const targetWindowTitle = 'League of Legends (TM)';
     const windows = await getWindows();
     for (const window of windows) {
       if ((await window.getTitle()).includes(targetWindowTitle)) {

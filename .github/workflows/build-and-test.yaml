@@ -16,8 +16,8 @@ jobs:
   build-and-test:
     strategy:
       matrix:
-        os: [windows-latest]
-        version: [20.x]
+        os: [windows-latest, ubuntu-latest]
+        version: [18.x, 20.x]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10
     steps:
@@ -37,7 +37,7 @@ jobs:
             ${{ runner.os }}-node-
 
       - name: Install Dependencies
-        run: npm ci
+        run: rm package-lock.json && npm i
 
       - name: Lint
         run: npm run lint-check

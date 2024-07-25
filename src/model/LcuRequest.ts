@@ -33,7 +33,7 @@ async function makeRequest(method: any, url: any, body: any = {}, retries: any =
     }
   } catch (e) {
     if (retries <= 0) {
-      throw new Error(`Client Request Error: ${e.message}`);
+      throw new Error(`Client Request Error: ${url}, ${e.message}`);
     }
     return makeRequest(method, url, body, retries - 1);
   }
