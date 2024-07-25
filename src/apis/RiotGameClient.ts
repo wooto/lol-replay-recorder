@@ -10,7 +10,7 @@ import { promisify } from 'util';
 
 const rcsExePath = `"C:\\Riot Games\\Riot Client\\RiotClientServices.exe"`;
 
-async function waitToExistsFile(filePath: string, timeout: number = 10000) {
+async function waitToExistsFile(filePath: string, timeout: number = 1000 * 60) {
   const start = Date.now();
   while (!fs.existsSync(filePath)) {
     if (Date.now() - start > timeout) {
@@ -21,7 +21,7 @@ async function waitToExistsFile(filePath: string, timeout: number = 10000) {
 }
 
 async function invokeRiotRequest(lockfile: string, path: string, method: string = 'GET', body: any = null, retry: number = 3): Promise<any> {
-  await waitToExistsFile(lockfile, 10000);
+  await waitToExistsFile(lockfile);
   const lockContent = (await promisify(fs.readFile)(lockfile, { encoding: 'utf8' })).split(':');
   const port = lockContent[2];
   const password = lockContent[3];
@@ -63,7 +63,7 @@ export class RiotGameClient {
         username,
         password,
       },
-      30,
+      0,
     );
   }
 

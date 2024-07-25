@@ -17,6 +17,10 @@ async function makeRequest(
   body: any = null,
   retries: any = 3,
 ): Promise<any> {
+  if(retries < 0) {
+    throw new Error('Client Request Error: Max retries exceeded');
+  }
+
   const newHeaders: any = { ...headers, 'Content-Type': 'application/json' };
   try {
     const response = await limiter.schedule(() => {
