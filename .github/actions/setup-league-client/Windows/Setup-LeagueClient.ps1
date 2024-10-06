@@ -31,7 +31,7 @@ $REGION_UPPER = $env:LOL_REGION.ToUpper()
 $INSTALLER_EXE = "$env:RUNNER_TEMP\install.$REGION_LOWER.exe"
 
 $RCS_LOCKFILE = "$env:LOCALAPPDATA\Riot Games\Riot Client\Config\lockfile"
-$RCS_DIR = "$env:LOCALAPPDATA\Riot Games\Riot Client"
+$RCS_DIR = "C:\Riot Games\Riot Client"
 $RCS_EXE = "$RCS_DIR\RiotClientServices.exe"
 $RCS_ARGS = '--launch-product=league_of_legends', '--launch-patchline=live', "--region=$REGION_UPPER"
 
