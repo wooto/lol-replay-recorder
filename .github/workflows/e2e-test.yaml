@@ -39,22 +39,13 @@ jobs:
       - name: Install Dependencies
         run: rm package-lock.json && npm i
 
-#      - name: Setup League Client
-#        id: league-client
-#        uses: ./.github/workflows/setup-league-client.yaml
-#        with:
-#          username: ${{ secrets.LOL_USERNAME }}
-#          password: ${{ secrets.LOL_PASSWORD }}
-#          region: NA
-      - name: Setup League Client on Windows
-        if: ${{ runner.os == 'Windows' }}
-        id: windows
-        shell: pwsh
-        run: ./.github/workflows/setup-league-client.yaml
-        env:
-          LOL_USERNAME: ${{ secrets.LOL_USERNAME }}
-          LOL_PASSWORD: ${{ secrets.LOL_PASSWORD }}
-          LOL_REGION: NA
+      - name: Setup League Client
+        id: league-client
+        uses: ./.github/workflows/setup-league-client.yaml
+        with:
+          username: ${{ secrets.LOL_USERNAME }}
+          password: ${{ secrets.LOL_PASSWORD }}
+          region: NA
 
       - name: Test
         run: npm run test:e2e:lcu
