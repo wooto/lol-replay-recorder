@@ -41,7 +41,7 @@ jobs:
 
       - name: Setup League Client
         id: league-client
-        uses: ./.github/actions/setup-league-client.yaml
+        uses: ./.github/workflows/setup-league-client.yaml
         with:
           username: ${{ secrets.LOL_USERNAME }}
           password: ${{ secrets.LOL_PASSWORD }}
