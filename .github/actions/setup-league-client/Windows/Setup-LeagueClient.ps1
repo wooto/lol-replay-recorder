@@ -180,7 +180,7 @@ Try
     Start-Sleep 5
     Invoke-RiotRequest $LCU_LOCKFILE '/lol-patch/v1/products/league_of_legends/state' # Burn first request.
     Start-Sleep 10
-    $attempts = 40
+    $attempts = 60
     While ($True)
     {
         $state = Invoke-RiotRequest $LCU_LOCKFILE '/lol-patch/v1/products/league_of_legends/state'
