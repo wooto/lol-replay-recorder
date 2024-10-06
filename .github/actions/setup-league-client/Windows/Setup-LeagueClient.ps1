@@ -132,10 +132,6 @@ If (-Not (Test-Path $LCU_EXE))
     Invoke-RiotRequest $RCS_LOCKFILE '/patch/v1/installs'
     Stop-RiotProcesses
 
-    dir "$env:LOCALAPPDATA"
-    dir "$env:LOCALAPPDATA\Riot Games"
-    dir "$env:LOCALAPPDATA\Riot Games\Riot Client"
-
     Write-Host 'Restarting RCS'
     & $RCS_EXE $RCS_ARGS
     Start-Sleep 5
@@ -143,6 +139,7 @@ If (-Not (Test-Path $LCU_EXE))
     $attempts = 15
     While ($True)
     {
+        Invoke-RiotRequest $RCS_LOCKFILE "/patch/v1/installs"
         $status = Invoke-RiotRequest $RCS_LOCKFILE "/patch/v1/installs/$LOL_INSTALL_ID/status"
         If ('up_to_date' -Eq $status.patch.state)
         {
