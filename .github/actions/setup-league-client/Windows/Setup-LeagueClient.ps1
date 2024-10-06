@@ -61,6 +61,7 @@ function Invoke-RiotRequest
         [Parameter(Mandatory = $false)] $body = $null,
         [Parameter(Mandatory = $false)] [Int]$attempts = 100
     )
+    dir $env:LOCALAPPDATA\Riot Games\Riot Client\Config
 
     While ($True)
     {
