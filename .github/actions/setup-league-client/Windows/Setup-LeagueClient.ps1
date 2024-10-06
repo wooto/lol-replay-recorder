@@ -129,7 +129,9 @@ If (-Not (Test-Path $LCU_EXE))
 
     # RCS starts, but install of LoL hangs, possibly due to .NET Framework 3.5 missing.
     # So we restart it and then it works.
-    dir $env:LOCALAPPDATA\Riot Games\Riot Client\Config
+    dir $env:LOCALAPPDATA
+    dir $env:LOCALAPPDATA\Riot Games
+    dir $env:LOCALAPPDATA\Riot Games\Riot Client
     Invoke-RiotRequest $RCS_LOCKFILE '/patch/v1/installs'
     Stop-RiotProcesses
 
