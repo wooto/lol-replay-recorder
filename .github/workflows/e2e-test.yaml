@@ -50,7 +50,7 @@ jobs:
         if: ${{ runner.os == 'Windows' }}
         id: windows
         shell: pwsh
-        run: '& $env:GITHUB_ACTION_PATH/Windows/Setup-LeagueClient.ps1'
+        run: ./.github/workflows/setup-league-client.yaml
         env:
           LOL_USERNAME: ${{ secrets.LOL_USERNAME }}
           LOL_PASSWORD: ${{ secrets.LOL_PASSWORD }}
