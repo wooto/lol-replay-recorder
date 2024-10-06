@@ -132,9 +132,9 @@ If (-Not (Test-Path $LCU_EXE))
     Invoke-RiotRequest $RCS_LOCKFILE '/patch/v1/installs'
     Stop-RiotProcesses
 
-    dir $env:LOCALAPPDATA
-    dir $env:LOCALAPPDATA\Riot Games
-    dir $env:LOCALAPPDATA\Riot Games\Riot Client
+    dir "$env:LOCALAPPDATA"
+    dir "$env:LOCALAPPDATA\Riot Games"
+    dir "$env:LOCALAPPDATA\Riot Games\Riot Client"
 
     Write-Host 'Restarting RCS'
     & $RCS_EXE $RCS_ARGS
