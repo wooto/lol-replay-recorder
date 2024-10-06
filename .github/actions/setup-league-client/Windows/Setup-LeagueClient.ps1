@@ -61,7 +61,6 @@ function Invoke-RiotRequest
         [Parameter(Mandatory = $false)] $body = $null,
         [Parameter(Mandatory = $false)] [Int]$attempts = 100
     )
-    dir $env:LOCALAPPDATA\Riot Games\Riot Client\Config
 
     While ($True)
     {
@@ -130,6 +129,7 @@ If (-Not (Test-Path $LCU_EXE))
 
     # RCS starts, but install of LoL hangs, possibly due to .NET Framework 3.5 missing.
     # So we restart it and then it works.
+    dir $env:LOCALAPPDATA\Riot Games\Riot Client\Config
     Invoke-RiotRequest $RCS_LOCKFILE '/patch/v1/installs'
     Stop-RiotProcesses
 
