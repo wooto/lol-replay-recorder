@@ -29,7 +29,7 @@ jobs:
         with:
           username: ${{ secrets.LOL_USERNAME }}
           password: ${{ secrets.LOL_PASSWORD }}
-          region: NA
+          region: KR
 
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
