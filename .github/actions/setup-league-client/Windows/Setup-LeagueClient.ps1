@@ -134,7 +134,7 @@ If (-Not (Test-Path $LCU_EXE))
 
     Write-Host 'Restarting RCS'
     & $RCS_EXE $RCS_ARGS
-    Start-Sleep 5
+    Start-Sleep 10
 
     $attempts = 15
     While ($True)
