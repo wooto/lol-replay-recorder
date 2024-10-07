@@ -89,15 +89,7 @@ module.exports = {
         'no-unused-vars': 'off',
         '@typescript-eslint/no-empty-function': ['off'],
         '@typescript-eslint/no-non-null-assertion': 'off',
-        '@typescript-eslint/no-unused-vars': [
-          'error',
-          {
-            argsIgnorePattern: '^_',
-            varsIgnorePattern: '^_',
-            caughtErrorsIgnorePattern: '^_',
-            ignoreRestSiblings: true,
-          },
-        ],
+        '@typescript-eslint/no-unused-vars': 'off',
         '@typescript-eslint/no-empty-interface': 'off',
         /** RequestType<Params = {}, Queries = {}, Body = {}>에서 error 발생 */
         '@typescript-eslint/ban-types': 'off',

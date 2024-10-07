@@ -23,6 +23,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup League Client
+        id: league-client
+        uses: ./.github/actions/setup-league-client
+        with:
+          username: ${{ secrets.LOL_USERNAME }}
+          password: ${{ secrets.LOL_PASSWORD }}
+          region: KR
+
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:
@@ -38,14 +46,6 @@ jobs:
 
       - name: Install Dependencies
         run: rm package-lock.json && npm i
-
-      - name: Setup League Client
-        id: league-client
-        uses: magisteriis/setup-league-client@v1
-        with:
-          username: ${{ secrets.LOL_USERNAME }}
-          password: ${{ secrets.LOL_PASSWORD }}
-          region: NA
 
       - name: Test
         run: npm run test:e2e:lcu
