@@ -141,7 +141,8 @@ If (-Not (Test-Path $LCU_EXE))
     {
         $resp = Invoke-RiotRequest $RCS_LOCKFILE "/patch/v1/installs"
 #        print
-        print($resp)
+#        print($resp)
+        echo $resp
 #        Invoke-RiotRequest $RCS_LOCKFILE "/patch/v2/installs"
 #        patch/v1/installs/:install-id/requests/patch
 #        Invoke-RiotRequest $RCS_LOCKFILE "/patch/v1/installs/$LOL_INSTALL_ID" 'PUT'
