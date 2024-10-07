@@ -22,14 +22,14 @@ export class LeagueClientExecution {
   }) {
     await new LeagueClientExecution().stopRiotProcesses();
     await new RiotGameClient().startRiotClient(params.region as any, params.locale);
-    await new RiotGameClient().login(params.username, params.password);
+    await new RiotGameClient().login(params.username, params.password, params.region);
     await new LeagueClientUx().startClient({ region: params.region, locale: params.locale });
 
     await new LeagueClientExecution().stopRiotProcesses();
     for (let i = 0; i < 5; i++) {
       try {
         await new RiotGameClient().startRiotClient(params.region as any, params.locale);
-        await new RiotGameClient().login(params.username, params.password);
+        await new RiotGameClient().login(params.username, params.password, params.region);
         await new LeagueClientUx().startClient({ region: params.region, locale: params.locale });
         const { action } = await new LeagueClientUx().getState({ options: { retry: 15 } });
         if (action !== 'Idle') {

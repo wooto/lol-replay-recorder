@@ -54,7 +54,7 @@ export class RiotGameClient {
     );
   }
 
-  async login(username: string, password: string) {
+  async login(username: string, password: string, platformId: string) {
     return await invokeRiotRequest(
       await this.getLockfilePath(),
       '/rso-auth/v1/authorization/gas',
@@ -62,6 +62,7 @@ export class RiotGameClient {
       {
         username,
         password,
+        platformId
       },
       0,
     );
