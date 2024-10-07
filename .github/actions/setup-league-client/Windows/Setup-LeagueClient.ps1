@@ -141,6 +141,7 @@ If (-Not (Test-Path $LCU_EXE))
     {
         Invoke-RiotRequest $RCS_LOCKFILE "/patch/v1/installs"
 #        patch/v1/installs/:install-id/requests/patch
+        Invoke-RiotRequest $RCS_LOCKFILE "/patch/v1/installs/$LOL_INSTALL_ID" 'PUT'
         Invoke-RiotRequest $RCS_LOCKFILE "/patch/v1/installs/$LOL_INSTALL_ID/requests/patch" 'PUT'
         $status = Invoke-RiotRequest $RCS_LOCKFILE "/patch/v1/installs/$LOL_INSTALL_ID/status"
         If ('up_to_date' -Eq $status.patch.state)
