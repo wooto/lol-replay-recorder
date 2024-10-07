@@ -140,8 +140,6 @@ If (-Not (Test-Path $LCU_EXE))
     While ($True)
     {
         $resp = Invoke-RiotRequest $RCS_LOCKFILE "/patch/v1/installs"
-#        print
-#        print($resp)
         Write-Host "resp: $resp"
 #        Invoke-RiotRequest $RCS_LOCKFILE "/patch/v2/installs"
 #        patch/v1/installs/:install-id/requests/patch
