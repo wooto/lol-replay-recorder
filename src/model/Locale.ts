@@ -6,6 +6,7 @@ export enum Locale {
   es_ES = 'es_ES',
   es_MX = 'es_MX',
   en_US = 'en_US',
+  vn_VN = 'vn_VN',
   en_GB = 'en_GB',
   en_AU = 'en_AU',
   fr_FR = 'fr_FR',

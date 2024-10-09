@@ -1,6 +1,8 @@
 import { exit } from 'node:process';
-import { LeagueClientExecution } from '../src';
+import { LeagueClientExecution, RiotGameClient } from '../src';
+import { getActiveWindow, getWindows, mouse, keyboard, Key } from '@kirillvakalov/nut-tree__nut-js';
 import { Locale } from '../src/model/Locale';
+
 
 
 const username = process.env.RIOT_USERNAME;
@@ -19,9 +21,10 @@ console.log('password:', password);
 //   });
 // }
 
+
 await new LeagueClientExecution().startRiotProcessesSafely({
-  region: 'kr' as any,
-  locale: Locale.ko_KR,
+  region: 'vn' as any,
+  locale: Locale.vn_VN,
   username,
   password,
 });

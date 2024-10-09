@@ -7,6 +7,7 @@ import { refineRegion, sleepInSeconds } from '../utils/utils';
 import { RiotTypes } from '../model/RiotTypes';
 import { Locale } from '../model/Locale';
 import { promisify } from 'util';
+import { getActiveWindow, getWindows, Key, keyboard, mouse } from '@kirillvakalov/nut-tree__nut-js';
 
 const rcsExePath = `"C:\\Riot Games\\Riot Client\\RiotClientServices.exe"`;
 
@@ -55,17 +56,27 @@ export class RiotGameClient {
   }
 
   async login(username: string, password: string, platformId: string) {
-    return await invokeRiotRequest(
-      await this.getLockfilePath(),
-      '/rso-auth/v1/authorization/gas',
-      'POST',
-      {
-        username,
-        password,
-        platformId
-      },
-      0,
-    );
+    await this.focusClientWindow();
+    await sleepInSeconds(2);
+
+    Array.from({ length: 10 }).forEach(async () => {
+      await keyboard.type(Key.Backspace);
+    });
+    await keyboard.type(username);
+
+    await keyboard.pressKey(Key.Tab);
+
+    Array.from({ length: 10 }).forEach(async () => {
+      await keyboard.type(Key.Backspace);
+    });
+    await keyboard.type(password);
+
+    Array.from({ length: 7 }).forEach(async () => {
+      await keyboard.pressKey(Key.Tab);
+    });
+
+    await keyboard.type(Key.Enter);
+    await keyboard.type(Key.Enter);
   }
 
   async getState(): Promise<{ action: string }> {
@@ -170,6 +181,32 @@ export class RiotGameClient {
       await sleepInSeconds(1);
     }
 
+
+  }
+  async focusClientWindow(): Promise<void> {
+    const targetWindowTitle = 'Riot Client';
+    const windows = await getWindows();
+    for (const window of windows) {
+      if ((await window.getTitle()).includes(targetWindowTitle)) {
+        for (let i = 0; i < 10; i++) {
+          await window.focus();
+          const region = await window.getRegion();
+          await mouse.move([
+            {
+              x: (region.left + region.width) / 2,
+              y: (region.top + region.height) / 2,
+            },
+          ]);
+          await mouse.leftClick();
+          if ((await (await getActiveWindow()).getTitle()) === (await window.getTitle())) {
+            return;
+          }
+          await sleepInSeconds(Math.min(2 ** i, 4));
+        }
+      }
+    }
+
+    throw new Error('Cannot find League of Legends window');
   }
 }
 
