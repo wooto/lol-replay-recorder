@@ -139,7 +139,6 @@ export class RiotGameClient {
           `--launch-patchline=live`,
           `--region=${refinedRegion.toUpperCase()}`,
           `--locale=${locale}`,
-          '--skip-to-install',
         ],
         { shell: true });
 
@@ -172,17 +171,28 @@ export class RiotGameClient {
         if (status.patch.state === 'up_to_date') {
           break;
         }
-
         console.log(`Installing LoL: ${status.patch.progress.progress}%`);
+
       }
       catch (e) {
         console.log('Failed to get patch status:', e);
       }
       await sleepInSeconds(1);
     }
-
-
   }
+
+  async getRegionLocale() {
+    const response = await invokeRiotRequest(
+      await this.getLockfilePath(),
+      '/riotclient/get_region_locale',
+      'GET',
+      null,
+      0,
+    );
+
+    return { locale: response.locale, region: response.region };
+  }
+
   async focusClientWindow(): Promise<void> {
     const targetWindowTitle = 'Riot Client';
     const windows = await getWindows();

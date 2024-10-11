@@ -51,6 +51,7 @@
     "@fightmegg/riot-api": "^0.0.19",
     "@kirillvakalov/nut-tree__nut-js": "^4.2.1-2",
     "ini": "^4.1.2",
+    "js-yaml": "^4.1.0",
     "league-connect": "^6.0.0-rc12",
     "lodash": "^4.17.21"
   }

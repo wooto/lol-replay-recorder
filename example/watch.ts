@@ -11,21 +11,14 @@ console.log('Hello, World!');
 console.log('username:', username);
 console.log('password:', password);
 
-// const locale_list = Object.values(Locale);
-// for (const locale of locale_list) {
-//   await new LeagueClientExecution().startRiotProcessesSafely({
-//     region: 'na1' as any,
-//     locale,
-//     username,
-//     password,
-//   });
-// }
-
-
-await new LeagueClientExecution().startRiotProcessesSafely({
-  region: 'vn' as any,
-  locale: Locale.vn_VN,
-  username,
-  password,
-});
+const locale_list = Object.values(Locale);
+for (const locale of locale_list) {
+  console.log('start locale:', locale);
+  await new LeagueClientExecution().startRiotProcessesSafely({
+    region: 'na1' as any,
+    locale,
+    username,
+    password,
+  });
+}
 exit(0);

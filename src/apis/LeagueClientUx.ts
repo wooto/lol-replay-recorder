@@ -9,7 +9,7 @@ import { promisify } from 'util';
 import * as fs from 'fs';
 import { RiotTypes } from '../model/RiotTypes';
 
-const rcuExePath = `"C:\\Riot Games\\League of Legends\\LeagueClient.exe"`;
+const lcExePath = `"C:\\Riot Games\\League of Legends\\LeagueClient.exe"`;
 
 export class LeagueClientUx {
   patch: string;
@@ -22,16 +22,25 @@ export class LeagueClientUx {
   async startClient(params: {
     region: RiotTypes.Region,
     locale: Locale
-  } = {
-    region: RiotTypes.PlatformId.NA1,
-    locale: Locale.en_US,
   }) {
-    spawn(rcuExePath,
-      [
-        `--region=${refineRegion(params.region).toUpperCase()}`,
-        `--locale=${params.locale}`,
-      ],
-      { shell: true });
+    new Promise((resolve, reject) => {
+      const process = spawn(lcExePath,
+        [
+          `--region=${refineRegion(params.region).toUpperCase()}`,
+          `--locale=${params.locale}`,
+        ],
+        { shell: true });
+
+      process.on('error', (error) => {
+        console.error('Failed to start LeagueClient:', error);
+        reject(error);
+      });
+
+      process.on('close', (code) => {
+        console.log(`LeagueClient process exited with code ${code}`);
+        resolve(null);
+      });
+    });
   }
 
   async waitForClientToBeReady() {
@@ -58,6 +67,10 @@ export class LeagueClientUx {
 
   async getInputSettings() {
     return await makeRequest('GET', '/lol-game-settings/v1/input-settings');
+  }
+
+  async getRegionLocale() {
+    return await makeRequest('GET', '/riotclient/region-locale');
   }
 
   async patchGameSettings(settingsResource: any) {

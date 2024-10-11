@@ -10,6 +10,7 @@ import { LeagueClientUx } from './LeagueClientUx';
 import { Locale } from '../model/Locale';
 import { getActiveWindow, getWindows, mouse } from '@kirillvakalov/nut-tree__nut-js';
 import { RiotTypes } from '../model/RiotTypes';
+import { YamlEditor } from '../utils/YamlEditor';
 
 const execAsync = promisify(exec);
 
@@ -21,22 +22,19 @@ export class LeagueClientExecution {
     password: string,
   }) {
     await new LeagueClientExecution().stopRiotProcesses();
-    await new RiotGameClient().startRiotClient(params.region as any, params.locale);
-    await new RiotGameClient().login(params.username, params.password, params.region);
-    await new LeagueClientUx().startClient({ region: params.region, locale: params.locale });
-
-    await new LeagueClientExecution().stopRiotProcesses();
+    this.setLocale(params.locale);
     for (let i = 0; i < 5; i++) {
       try {
         await new RiotGameClient().startRiotClient(params.region as any, params.locale);
         await new RiotGameClient().login(params.username, params.password, params.region);
-        await new LeagueClientUx().startClient({ region: params.region, locale: params.locale });
+        // await new LeagueClientUx().startClient({ region: params.region, locale: params.locale });
         const { action } = await new LeagueClientUx().getState({ options: { retry: 15 } });
         if (action !== 'Idle') {
           throw new Error('Client is not ready', action);
         }
         break;
       } catch (e) {
+        console.error('Error starting Riot processes:', e);
         await sleepInSeconds(1);
       }
     }
@@ -44,6 +42,15 @@ export class LeagueClientExecution {
     if (action !== 'Idle') {
       throw new Error('Client is not ready', action);
     }
+
+    const { locale } = await new LeagueClientUx().getRegionLocale();
+    console.log('RCU response', await new RiotGameClient().getRegionLocale());
+    console.log('LCU response', await new LeagueClientUx().getRegionLocale());
+
+    if (locale !== params.locale) {
+      throw new Error(`Locale is not correct: ${locale}`);
+    }
+
     await sleepInSeconds(5);
   }
 
@@ -92,6 +99,10 @@ async findWindowsInstalled(): Promise<string[]> {
       }
     }
     return [];
+  }
+
+  getProductSettingsPath(): string {
+    return path.join('C:', 'ProgramData', 'Riot Games', 'Metadata', 'league_of_legends.live', 'league_of_legends.live.product_settings.yaml');
   }
 
   async getInstalledPaths(): Promise<string[]> {
@@ -145,6 +156,18 @@ async findWindowsInstalled(): Promise<string[]> {
     } catch (error) {
       console.error(`Error writing config file: ${error}`);
     }
+  }
+
+  async setLocale(locale: string) {
+    const yamlEditor = new YamlEditor(this.getProductSettingsPath());
+
+    const avaliable_locales: string[] = yamlEditor.data['locale_data']['available_locales'];
+    if(!avaliable_locales.includes(locale)) {
+      throw new Error(`Invalid locale: ${locale}, available locales: ${avaliable_locales}`);
+    }
+    yamlEditor.updateKey('locale_data.default_locale', locale);
+    yamlEditor.updateKey('settings.locale', locale);
+    yamlEditor.saveChanges();
   }
 
 
