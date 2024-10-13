@@ -15,7 +15,7 @@ const locale_list = Object.values(Locale);
 for (const locale of locale_list) {
   console.log('start locale:', locale);
   await new LeagueClient().startRiotProcessesSafely({
-    region: 'na1' as any,
+    region: 'kr' as any,
     locale,
     username,
     password,

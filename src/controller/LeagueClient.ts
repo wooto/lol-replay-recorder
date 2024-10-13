@@ -26,7 +26,8 @@ export class LeagueClient {
       try {
         await new RiotGameClient().startRiotClient(params.region as any, params.locale);
         await new RiotGameClient().login(params.username, params.password, params.region);
-        const { action } = await new LeagueClientUx().getState({ options: { retry: 15 } });
+
+        const { action } = await new LeagueClientUx().getState({ options: { retry: 60 } });
         if (action !== "Idle") {
           throw new Error("Client is not ready", action);
         }

@@ -59,7 +59,7 @@ export class RiotGameClient {
   async login(username: string, password: string, platformId: string) {
     await this.focusClientWindow();
     await sleepInSeconds(2);
-
+    
     for (const item of Array.from({ length: 10 })) {
       await WindowHandler.Handler.keyboardType(Key.Backspace);
     }
@@ -78,6 +78,16 @@ export class RiotGameClient {
 
     await WindowHandler.Handler.keyboardType(Key.Enter);
     await WindowHandler.Handler.keyboardType(Key.Enter);
+  }
+
+  async isAutoLoginEnabled() {
+    return invokeRiotRequest(
+      await this.getLockfilePath(),
+      '/riotclient/get_auto_login_enabled',
+      'GET',
+      null,
+      0,
+    );
   }
 
   async getState(): Promise<{ action: string }> {
