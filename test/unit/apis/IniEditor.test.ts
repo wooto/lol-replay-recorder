@@ -4,6 +4,7 @@ import path, { dirname } from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
 import { tmpdir } from "os";
+import exp from "constants";
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -19,22 +20,17 @@ describe('IniEditor', () => {
         const inieditor = new IniEditor(path.join(tmpdir(), 'test.ini'));
 
         expect(inieditor.data).to.be.not.null;
-        expect(inieditor.data.test).to.eql("1")
-        expect(inieditor.data['test.a']).to.eql("1-a")
-        expect(inieditor.data['test.b']).to.eql("1-b")
+        expect(inieditor.data.GameEvents).to.be.not.null;
+        expect(inieditor.data.GameEvents.evtSelectOrderPlayer1).to.eql('[1]');
     });
 
     it('update test.ini', async () => {
         const inieditor = new IniEditor(path.join(tmpdir(), 'test.ini'));
-        inieditor.update('test', '2');
-        inieditor.update('test.a', '2-a');
-        inieditor.update('test.b', '2-b');
+        inieditor.updateSection("GameEvents", "evtSelectOrderPlayer1", '[2]');
         inieditor.save();
 
         const inieditor2 = new IniEditor(path.join(tmpdir(), 'test.ini'));
         expect(inieditor2.data).to.be.not.null;
-        expect(inieditor2.data.test).to.eql("2")
-        expect(inieditor2.data['test.a']).to.eql("2-a")
-        expect(inieditor2.data['test.b']).to.eql("2-b")
+        expect(inieditor2.data.GameEvents.evtSelectOrderPlayer1).to.eql('[2]');
     });
 });

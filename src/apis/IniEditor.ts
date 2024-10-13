@@ -8,6 +8,7 @@ export class IniEditor {
   constructor(filename: string) {
     this.filename = filename;
     this.data = this.loadIni();
+    console.log(this.data);
   }
 
   private loadIni(): any {
@@ -19,7 +20,10 @@ export class IniEditor {
   }
 
   save(): void {
-    fs.writeFileSync(this.filename, ini.stringify(this.data));
+    const iniData = ini.stringify(this.data, { whitespace: true })
+      .replace(/"\[([^\]]+)\]"/g, '[$1]');
+
+    fs.writeFileSync(this.filename, iniData, "utf8");
   }
 
   updateSection(section: string, key: string, value: any): void {

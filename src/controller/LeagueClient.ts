@@ -154,11 +154,11 @@ export class LeagueClient {
   async setDefaultInputIni(): Promise<void> {
     try {
       const editor = new IniEditor(await this.getGameInputIniPath());
-      editor.updateSection("GameEvents", "evtSelectOrderPlayer1", 1);
-      editor.updateSection("GameEvents", "evtSelectOrderPlayer2", 2);
-      editor.updateSection("GameEvents", "evtSelectOrderPlayer3", 3);
-      editor.updateSection("GameEvents", "evtSelectOrderPlayer4", 4);
-      editor.updateSection("GameEvents", "evtSelectOrderPlayer5", 5);
+      editor.updateSection("GameEvents", "evtSelectOrderPlayer1", "[1]");
+      editor.updateSection("GameEvents", "evtSelectOrderPlayer2", "[2]");
+      editor.updateSection("GameEvents", "evtSelectOrderPlayer3", "[3]");
+      editor.updateSection("GameEvents", "evtSelectOrderPlayer4", "[4]");
+      editor.updateSection("GameEvents", "evtSelectOrderPlayer5", "[5]");
       editor.save();
     } catch (error) {
       console.error(`Error writing config file: ${error}`);
