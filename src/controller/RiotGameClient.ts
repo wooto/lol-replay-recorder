@@ -59,7 +59,7 @@ export class RiotGameClient {
   async login(username: string, password: string, platformId: string) {
     await this.focusClientWindow();
     await sleepInSeconds(2);
-    
+
     for (const item of Array.from({ length: 10 })) {
       await WindowHandler.Handler.keyboardType(Key.Backspace);
     }
@@ -67,12 +67,12 @@ export class RiotGameClient {
 
     await WindowHandler.Handler.keyboardType(Key.Tab);
 
-    for (const item of Array.from({ length: 10 })) {
+    for (const _ of Array.from({ length: 10 })) {
       await WindowHandler.Handler.keyboardType(Key.Backspace);
     }
     await WindowHandler.Handler.keyboardType(password);
 
-    for (const item of Array.from({ length: 7 })) {
+    for (const _ of Array.from({ length: 7 })) {
       await WindowHandler.Handler.pressKey(Key.Tab);
     }
 
@@ -205,23 +205,7 @@ export class RiotGameClient {
 
   async focusClientWindow(): Promise<void> {
     const targetWindowTitle = 'Riot Client';
-    const windows = await WindowHandler.Handler.getWindows();
-    for (const window of windows) {
-      const title = await window.getTitle();
-      if (title.includes(targetWindowTitle)) {
-        for (let i = 0; i < 10; i++) {
-          await window.focus();
-          const region = await window.getRegion();
-          await WindowHandler.Handler.mouseMove((region.left + region.width) / 2, (region.top + region.height) / 2);
-          await WindowHandler.Handler.mouseLeftClick();
-          if ((await (await WindowHandler.Handler.getActiveWindow()).getTitle()) === (await window.getTitle())) {
-            return;
-          }
-          await sleepInSeconds(Math.min(2 ** i, 4));
-        }
-      }
-    }
-
+    await WindowHandler.Handler.focusClientWindow(targetWindowTitle);
     throw new Error('Cannot find League of Legends window');
   }
 }

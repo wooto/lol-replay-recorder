@@ -20,7 +20,7 @@ export class LeagueClient {
     username: string,
     password: string,
   }) {
-    await new LeagueClient().stopRiotProcesses();
+    await this.stopRiotProcesses();
     await this.setLocale(params.locale);
     for (let i = 0; i < 5; i++) {
       try {
@@ -35,7 +35,7 @@ export class LeagueClient {
       } catch (e) {
         console.error("Error starting Riot processes:", e);
         await sleepInSeconds(1);
-        await new LeagueClient().stopRiotProcesses();
+        await this.stopRiotProcesses();
       }
     }
 
