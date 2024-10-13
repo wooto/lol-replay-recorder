@@ -7,7 +7,8 @@ import { refineRegion, sleepInSeconds } from '../utils/utils';
 import { RiotTypes } from '../model/RiotTypes';
 import { Locale } from '../model/Locale';
 import { promisify } from 'util';
-import { getActiveWindow, getWindows, Key, keyboard, mouse } from '@kirillvakalov/nut-tree__nut-js';
+import { WindowHandler } from './WindowHandler';
+import Key = WindowHandler.Key;
 
 const rcsExePath = `"C:\\Riot Games\\Riot Client\\RiotClientServices.exe"`;
 
@@ -17,7 +18,7 @@ async function waitToExistsFile(filePath: string, timeout: number = 1000 * 60) {
     if (Date.now() - start > timeout) {
       throw new Error('File not found');
     }
-    await sleepInSeconds(1)
+    await sleepInSeconds(1);
   }
 }
 
@@ -59,24 +60,24 @@ export class RiotGameClient {
     await this.focusClientWindow();
     await sleepInSeconds(2);
 
-    Array.from({ length: 10 }).forEach(async () => {
-      await keyboard.type(Key.Backspace);
-    });
-    await keyboard.type(username);
+    for (const item of Array.from({ length: 10 })) {
+      await WindowHandler.Handler.keyboardType(Key.Backspace);
+    }
+    await WindowHandler.Handler.keyboardType(username);
 
-    await keyboard.pressKey(Key.Tab);
+    await WindowHandler.Handler.keyboardType(Key.Tab);
 
-    Array.from({ length: 10 }).forEach(async () => {
-      await keyboard.type(Key.Backspace);
-    });
-    await keyboard.type(password);
+    for (const item of Array.from({ length: 10 })) {
+      await WindowHandler.Handler.keyboardType(Key.Backspace);
+    }
+    await WindowHandler.Handler.keyboardType(password);
 
-    Array.from({ length: 7 }).forEach(async () => {
-      await keyboard.pressKey(Key.Tab);
-    });
+    for (const item of Array.from({ length: 7 })) {
+      await WindowHandler.Handler.pressKey(Key.Tab);
+    }
 
-    await keyboard.type(Key.Enter);
-    await keyboard.type(Key.Enter);
+    await WindowHandler.Handler.keyboardType(Key.Enter);
+    await WindowHandler.Handler.keyboardType(Key.Enter);
   }
 
   async getState(): Promise<{ action: string }> {
@@ -113,7 +114,7 @@ export class RiotGameClient {
     try {
       const lockfilePath = await this.getLockfilePath();
       await promisify(fs.unlink)(lockfilePath);
-    }catch (e) {
+    } catch (e) {
       // ignore
     }
   }
@@ -173,8 +174,7 @@ export class RiotGameClient {
         }
         console.log(`Installing LoL: ${status.patch.progress.progress}%`);
 
-      }
-      catch (e) {
+      } catch (e) {
         console.log('Failed to get patch status:', e);
       }
       await sleepInSeconds(1);
@@ -195,20 +195,16 @@ export class RiotGameClient {
 
   async focusClientWindow(): Promise<void> {
     const targetWindowTitle = 'Riot Client';
-    const windows = await getWindows();
+    const windows = await WindowHandler.Handler.getWindows();
     for (const window of windows) {
-      if ((await window.getTitle()).includes(targetWindowTitle)) {
+      const title = await window.getTitle();
+      if (title.includes(targetWindowTitle)) {
         for (let i = 0; i < 10; i++) {
           await window.focus();
           const region = await window.getRegion();
-          await mouse.move([
-            {
-              x: (region.left + region.width) / 2,
-              y: (region.top + region.height) / 2,
-            },
-          ]);
-          await mouse.leftClick();
-          if ((await (await getActiveWindow()).getTitle()) === (await window.getTitle())) {
+          await WindowHandler.Handler.mouseMove((region.left + region.width) / 2, (region.top + region.height) / 2);
+          await WindowHandler.Handler.mouseLeftClick();
+          if ((await (await WindowHandler.Handler.getActiveWindow()).getTitle()) === (await window.getTitle())) {
             return;
           }
           await sleepInSeconds(Math.min(2 ** i, 4));
