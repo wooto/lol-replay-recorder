@@ -30,6 +30,7 @@
     "@tsconfig/node20": "^20.1.2",
     "@types/chai": "^4.3.13",
     "@types/ini": "^4.1.0",
+    "@types/js-yaml": "^4.0.9",
     "@types/lodash": "^4.17.0",
     "@types/mocha": "^10.0.6",
     "@types/node": "^20.11.30",
