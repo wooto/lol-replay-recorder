@@ -165,7 +165,7 @@ export class LeagueReplayClient {
     for (let i = 0; i < 10; i++) {
       await execution.focusClientWindow();
       for (let j = 0; j < 50; j++) {
-        await WindowHandler.type(keyboardKey);
+        await WindowHandler.Handler.keyboardType(keyboardKey);
         await sleepInSeconds(0.2);
       }
       await sleepInSeconds(10);
