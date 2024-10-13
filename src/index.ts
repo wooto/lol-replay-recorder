@@ -1,4 +1,4 @@
-export { RiotGameClient } from './apis/RiotGameClient';
-export { LeagueClientUx } from './apis/LeagueClientUx';
-export { LeagueReplayClient } from './apis/LeagueReplayClient';
-export { LeagueClient } from './apis/LeagueClient';
+export { RiotGameClient } from './controller/RiotGameClient';
+export { LeagueClientUx } from './controller/LeagueClientUx';
+export { LeagueReplayClient } from './controller/LeagueReplayClient';
+export { LeagueClient } from './controller/LeagueClient';

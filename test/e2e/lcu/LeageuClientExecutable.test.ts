@@ -1,4 +1,4 @@
-import { LeagueClient } from '../../../src/apis/LeagueClient';
+import { LeagueClient } from '../../../src/controller/LeagueClient';
 import { expect } from 'chai';
 
 describe('LeagueClientExecutable', () => {
