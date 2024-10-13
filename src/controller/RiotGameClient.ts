@@ -207,10 +207,6 @@ export class RiotGameClient {
   async focusClientWindow(): Promise<void> {
     const targetWindowTitle = 'Riot Client';
     await WindowHandler.Handler.focusClientWindow(targetWindowTitle);
-<<<<<<< HEAD
-=======
-    throw new Error('Cannot find League of Legends window');
->>>>>>> d5bcc443bcd488ae491bc4a4683257f3acc06ae8
   }
 }
 
