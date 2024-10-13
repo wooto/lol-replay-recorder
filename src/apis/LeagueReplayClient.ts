@@ -4,7 +4,8 @@ import _ from 'lodash';
 import { sleepInSeconds } from '../utils/utils';
 import { ReplayType } from '../model/ReplayType';
 import { LeagueClient } from './LeagueClient';
-import { Key, WindowHandler } from './WindowHandler';
+import { WindowHandler } from './WindowHandler';
+import Key = WindowHandler.Key;
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
