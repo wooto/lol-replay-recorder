@@ -60,7 +60,7 @@ export class RiotGameClient {
     console.log('Logging in:', username, platformId);
     await this.focusClientWindow();
     await sleepInSeconds(2);
-    
+
     for (const item of Array.from({ length: 10 })) {
       await WindowHandler.Handler.keyboardType(Key.Backspace);
     }
@@ -68,12 +68,12 @@ export class RiotGameClient {
 
     await WindowHandler.Handler.keyboardType(Key.Tab);
 
-    for (const item of Array.from({ length: 10 })) {
+    for (const _ of Array.from({ length: 10 })) {
       await WindowHandler.Handler.keyboardType(Key.Backspace);
     }
     await WindowHandler.Handler.keyboardType(password);
 
-    for (const item of Array.from({ length: 7 })) {
+    for (const _ of Array.from({ length: 7 })) {
       await WindowHandler.Handler.pressKey(Key.Tab);
     }
 
@@ -207,6 +207,10 @@ export class RiotGameClient {
   async focusClientWindow(): Promise<void> {
     const targetWindowTitle = 'Riot Client';
     await WindowHandler.Handler.focusClientWindow(targetWindowTitle);
+<<<<<<< HEAD
+=======
+    throw new Error('Cannot find League of Legends window');
+>>>>>>> d5bcc443bcd488ae491bc4a4683257f3acc06ae8
   }
 }
 
