@@ -1,5 +1,5 @@
 import { exit } from 'node:process';
-import { LeagueClientExecution, RiotGameClient } from '../src';
+import { LeagueClient, RiotGameClient } from '../src';
 import { getActiveWindow, getWindows, mouse, keyboard, Key } from '@kirillvakalov/nut-tree__nut-js';
 import { Locale } from '../src/model/Locale';
 
@@ -14,7 +14,7 @@ console.log('password:', password);
 const locale_list = Object.values(Locale);
 for (const locale of locale_list) {
   console.log('start locale:', locale);
-  await new LeagueClientExecution().startRiotProcessesSafely({
+  await new LeagueClient().startRiotProcessesSafely({
     region: 'na1' as any,
     locale,
     username,

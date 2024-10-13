@@ -14,14 +14,14 @@ import { YamlEditor } from '../utils/YamlEditor';
 
 const execAsync = promisify(exec);
 
-export class LeagueClientExecution {
+export class LeagueClient {
   async startRiotProcessesSafely(params: {
     region: RiotTypes.Region,
     locale: Locale,
     username: string,
     password: string,
   }) {
-    await new LeagueClientExecution().stopRiotProcesses();
+    await new LeagueClient().stopRiotProcesses();
     this.setLocale(params.locale);
     for (let i = 0; i < 5; i++) {
       try {
@@ -64,16 +64,16 @@ export class LeagueClientExecution {
       'League of Legends.exe',
       'LeagueClientUxRender.exe',
     ];
-    for(const process of prcoesses) {
-      try{
+    for (const process of prcoesses) {
+      try {
         await execAsync(`taskkill /F /IM "${process}" /T`);
-      }catch (e) {
+      } catch (e) {
         // ignore
       }
     }
 
-    for(const process of prcoesses) {
-      for(let i = 0; i < 30; i++) {
+    for (const process of prcoesses) {
+      for (let i = 0; i < 30; i++) {
         try {
           // process to check if the process is still running
           await sleepInSeconds(1);
@@ -88,10 +88,9 @@ export class LeagueClientExecution {
     }
     await new RiotGameClient().removeLockfile();
     await new LeagueClientUx().removeLockfile();
-
-
   };
-async findWindowsInstalled(): Promise<string[]> {
+
+  async findWindowsInstalled(): Promise<string[]> {
     const paths = ['C:\\Riot Games\\League of Legends'];
     for (const path of paths) {
       if (existsSync(path)) {
@@ -162,7 +161,7 @@ async findWindowsInstalled(): Promise<string[]> {
     const yamlEditor = new YamlEditor(this.getProductSettingsPath());
 
     const avaliable_locales: string[] = yamlEditor.data['locale_data']['available_locales'];
-    if(!avaliable_locales.includes(locale)) {
+    if (!avaliable_locales.includes(locale)) {
       throw new Error(`Invalid locale: ${locale}, available locales: ${avaliable_locales}`);
     }
     yamlEditor.updateKey('locale_data.default_locale', locale);

@@ -3,12 +3,12 @@ import { makeRequest } from '../model/RiotRequest';
 import _ from 'lodash';
 import { sleepInSeconds } from '../utils/utils';
 import { ReplayType } from '../model/ReplayType';
-import { LeagueClientExecution } from './LeagueClientExecution';
-import { Key, keyboard } from '@kirillvakalov/nut-tree__nut-js';
+import { LeagueClient } from './LeagueClient';
+import { Key, WindowHandler } from './WindowHandler';
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
-export class ReplayClient {
+export class LeagueReplayClient {
   url: string;
 
   pid: any;
@@ -160,11 +160,11 @@ export class ReplayClient {
       ...[Key.Q, Key.W, Key.E, Key.R, Key.T],
     ][position];
 
-    const execution = new LeagueClientExecution();
+    const execution = new LeagueClient();
     for (let i = 0; i < 10; i++) {
       await execution.focusClientWindow();
       for (let j = 0; j < 50; j++) {
-        await keyboard.type(keyboardKey);
+        await WindowHandler.type(keyboardKey);
         await sleepInSeconds(0.2);
       }
       await sleepInSeconds(10);
