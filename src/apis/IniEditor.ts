@@ -1,9 +1,10 @@
 import * as fs from "fs";
 
+type RecursiveMap = Map<string, RecursiveMap>;
 
 export class IniEditor {
   filename: string;
-  data: any;
+  data: RecursiveMap;
 
   constructor(filename: string) {
     this.filename = filename;

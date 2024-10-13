@@ -29,7 +29,7 @@ export class YamlEditor {
     }
   }
 
-  updateKey(path: string, value: any): void {
+  update(path: string, value: any): void {
     const keys = path.split('.');
     let current = this.data;
 

@@ -1,8 +1,6 @@
 import { exec } from "child_process";
 import { promisify } from "util";
 import { existsSync } from "node:fs";
-import { readFile, writeFile } from "fs/promises";
-import ini from "ini";
 import path from "node:path";
 import { sleepInSeconds } from "../utils/utils";
 import { RiotGameClient } from "./RiotGameClient";
@@ -134,9 +132,8 @@ export class LeagueClient {
   async isGameEnabled(path: string): Promise<boolean> {
     try {
       const editor = new IniEditor(path);
-      editor.update("config.General.EnableReplayApi", true);
-      editor.save();
-
+      const enableReplayApi = editor.data["config"]?.["General"]?.["EnableReplayApi"];
+      return enableReplayApi == 1 || enableReplayApi == true || enableReplayApi == "1";
     } catch (error) {
       return false;
     }
@@ -144,15 +141,9 @@ export class LeagueClient {
 
   async setGameEnabled(path: string, enabled: boolean): Promise<void> {
     try {
-      const fileContent = await readFile(path, { encoding: "utf-8" });
-      let config = ini.parse(fileContent);
-
-      config.General = config.General || {};
-      config.General.EnableReplayApi = enabled ? 1 : 0;
-
-      const newFileContent = ini.stringify(config);
-      await writeFile(path, newFileContent, { encoding: "utf-8" });
-
+      const editor = new IniEditor(path);
+      editor.update("config.General.EnableReplayApi", enabled);
+      editor.save();
     } catch (error) {
       console.error(`Error writing config file: ${error}`);
     }
@@ -161,12 +152,12 @@ export class LeagueClient {
   async setLocale(locale: string) {
     const yamlEditor = new YamlEditor(this.getProductSettingsPath());
 
-    const avaliable_locales: string[] = yamlEditor.data["locale_data"]["available_locales"];
-    if (!avaliable_locales.includes(locale)) {
-      throw new Error(`Invalid locale: ${locale}, available locales: ${avaliable_locales}`);
+    const availableLocales: string[] = yamlEditor.data["locale_data"]["available_locales"];
+    if (!availableLocales.includes(locale)) {
+      throw new Error(`Invalid locale: ${locale}, available locales: ${availableLocales}`);
     }
-    yamlEditor.updateKey("locale_data.default_locale", locale);
-    yamlEditor.updateKey("settings.locale", locale);
+    yamlEditor.update("locale_data.default_locale", locale);
+    yamlEditor.update("settings.locale", locale);
     yamlEditor.saveChanges();
   }
 
