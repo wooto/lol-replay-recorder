@@ -1,12 +1,13 @@
 name: e2e test
 
-on:
-  schedule:
-    - cron: '0 0 * * *'
-  pull_request:
-  push:
-    branches:
-      - main
+
+# on:
+#   schedule:
+#     - cron: '0 0 * * *'
+#   pull_request:
+#   push:
+#     branches:
+#       - main
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
