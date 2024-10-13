@@ -162,7 +162,5 @@ export class LeagueClient {
   async focusClientWindow(): Promise<void> {
     const targetWindowTitle = "League of Legends (TM)";
     await WindowHandler.Handler.focusClientWindow(targetWindowTitle);
-
-    throw new Error("Cannot find League of Legends window");
   }
 }

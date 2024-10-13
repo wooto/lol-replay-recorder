@@ -1,4 +1,4 @@
-import { getActiveWindow, getWindows, keyboard, mouse, Window as NutWindow } from '@kirillvakalov/nut-tree__nut-js';
+import { getActiveWindow as NutGetActiveWindow, getWindows, keyboard, mouse, Window as NutWindow } from '@kirillvakalov/nut-tree__nut-js';
 import { sleep } from '../utils/utils';
 
 export namespace WindowHandler {
@@ -155,7 +155,7 @@ export namespace WindowHandler {
 
   type Window = {
     getTitle: () => Promise<string>;
-    focus: () => Promise<void>;
+    focus: () => Promise<boolean>;
     getRegion(): Promise<Region>;
   }
 
@@ -179,7 +179,7 @@ export namespace WindowHandler {
     }
 
     async getActiveWindow(): Promise<Window> {
-      const window = await getActiveWindow();
+      const window = await NutGetActiveWindow();
       return HandlerImpl.mapWindow(window);
     }
 
@@ -222,13 +222,13 @@ export namespace WindowHandler {
     private static mapWindow(window: NutWindow) {
       return {
         getTitle: async () => {
-          return window.getTitle();
+          return await window.getTitle();
         },
         focus: async () => {
-          await window.focus();
+          return await window.focus();
         },
         getRegion: async () => {
-          return window.getRegion();
+          return await window.getRegion();
         },
       };
     }
