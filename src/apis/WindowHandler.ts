@@ -1,4 +1,5 @@
 import { getActiveWindow, getWindows, keyboard, mouse, Window as NutWindow } from '@kirillvakalov/nut-tree__nut-js';
+import { sleep } from '../utils/utils';
 
 export namespace WindowHandler {
   export enum Key {
@@ -165,6 +166,7 @@ export namespace WindowHandler {
     getWindows: () => Promise<Window[]>;
     mouseMove: (x: number, y: number) => Promise<void>;
     mouseLeftClick: () => Promise<void>;
+    focusClientWindow: (windowTitle: string) => Promise<void>;
   }
 
   class HandlerImpl implements Handler {
@@ -197,6 +199,26 @@ export namespace WindowHandler {
       await mouse.leftClick();
     }
 
+    async focusClientWindow(windowTitle: string, retry: number = 10): Promise<void> {
+      const windows = await getWindows();
+      for (const window of windows) {
+        if ((await window.getTitle()).includes(windowTitle)) {
+          for (let i = 0; i < retry; i++) {
+            await window.focus();
+            const region = await window.getRegion();
+            await this.mouseMove((region.left + region.width) / 2, (region.top + region.height) / 2);
+            await this.mouseLeftClick();
+            if ((await (await this.getActiveWindow()).getTitle()) === (await window.getTitle())) {
+              return;
+            }
+            await sleep(Math.min(50 * 2 ** i, 1000));
+          }
+        }
+      }
+
+      throw new Error(`Window with title ${windowTitle} not found`);
+    }
+
     private static mapWindow(window: NutWindow) {
       return {
         getTitle: async () => {
@@ -210,7 +232,6 @@ export namespace WindowHandler {
         },
       };
     }
-
   }
 
   export const Handler: Handler = new HandlerImpl();

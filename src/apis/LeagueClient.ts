@@ -8,9 +8,9 @@ import { sleepInSeconds } from '../utils/utils';
 import { RiotGameClient } from './RiotGameClient';
 import { LeagueClientUx } from './LeagueClientUx';
 import { Locale } from '../model/Locale';
-import { getActiveWindow, getWindows, mouse } from '@kirillvakalov/nut-tree__nut-js';
 import { RiotTypes } from '../model/RiotTypes';
 import { YamlEditor } from '../utils/YamlEditor';
+import { WindowHandler } from './WindowHandler';
 
 const execAsync = promisify(exec);
 
@@ -172,26 +172,7 @@ export class LeagueClient {
 
   async focusClientWindow(): Promise<void> {
     const targetWindowTitle = 'League of Legends (TM)';
-    const windows = await getWindows();
-    for (const window of windows) {
-      if ((await window.getTitle()).includes(targetWindowTitle)) {
-        for (let i = 0; i < 10; i++) {
-          await window.focus();
-          const region = await window.getRegion();
-          await mouse.move([
-            {
-              x: (region.left + region.width) / 2,
-              y: (region.top + region.height) / 2,
-            },
-          ]);
-          await mouse.leftClick();
-          if ((await (await getActiveWindow()).getTitle()) === (await window.getTitle())) {
-            return;
-          }
-          await sleepInSeconds(Math.min(2 ** i, 4));
-        }
-      }
-    }
+    await WindowHandler.Handler.focusClientWindow(targetWindowTitle);
 
     throw new Error('Cannot find League of Legends window');
   }
