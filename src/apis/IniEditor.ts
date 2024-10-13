@@ -3,7 +3,7 @@ import * as ini from "ini";
 
 export class IniEditor {
   filename: string;
-  data: any
+  data: any;
 
   constructor(filename: string) {
     this.filename = filename;
@@ -22,8 +22,11 @@ export class IniEditor {
     fs.writeFileSync(this.filename, ini.stringify(this.data));
   }
 
-  update(key: string, value: any): void {
-    this.data[key] = value;
+  updateSection(section: string, key: string, value: any): void {
+    if (!this.data[section]) {
+      this.data[section] = {};
+    }
+    this.data[section][key] = value;
   }
 
 }

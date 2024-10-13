@@ -10,6 +10,7 @@ import { RiotTypes } from "../model/RiotTypes";
 import { YamlEditor } from "../apis/YamlEditor";
 import { WindowHandler } from "./WindowHandler";
 import { IniEditor } from "../apis/IniEditor";
+import { getActiveWindow } from "@kirillvakalov/nut-tree__nut-js";
 
 const execAsync = promisify(exec);
 
@@ -139,7 +140,25 @@ export class LeagueClient {
   async setGameEnabled(path: string, enabled: boolean): Promise<void> {
     try {
       const editor = new IniEditor(path);
-      editor.update("config.General.EnableReplayApi", enabled);
+      editor.updateSection("General", "EnableReplayApi", enabled);
+      editor.save();
+    } catch (error) {
+      console.error(`Error writing config file: ${error}`);
+    }
+  }
+
+  async getGameInputIniPath(): Promise<any> {
+    return path.join("C:", "Riot Games", "League of Legends", "Config", "input.ini");
+  }
+
+  async setDefaultInputIni(): Promise<void> {
+    try {
+      const editor = new IniEditor(await this.getGameInputIniPath());
+      editor.updateSection("GameEvents", "evtSelectOrderPlayer1", 1);
+      editor.updateSection("GameEvents", "evtSelectOrderPlayer2", 2);
+      editor.updateSection("GameEvents", "evtSelectOrderPlayer3", 3);
+      editor.updateSection("GameEvents", "evtSelectOrderPlayer4", 4);
+      editor.updateSection("GameEvents", "evtSelectOrderPlayer5", 5);
       editor.save();
     } catch (error) {
       console.error(`Error writing config file: ${error}`);
