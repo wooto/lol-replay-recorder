@@ -181,13 +181,13 @@ export class RiotGameClient {
     }
   }
 
-  async getRegionLocale() {
+  async getRegionLocale(retry: number) {
     const response = await invokeRiotRequest(
       await this.getLockfilePath(),
       '/riotclient/get_region_locale',
       'GET',
       null,
-      0,
+      retry,
     );
 
     return { locale: response.locale, region: response.region };

@@ -26,7 +26,6 @@ export class LeagueClient {
       try {
         await new RiotGameClient().startRiotClient(params.region as any, params.locale);
         await new RiotGameClient().login(params.username, params.password, params.region);
-        // await new LeagueClientUx().startClient({ region: params.region, locale: params.locale });
         const { action } = await new LeagueClientUx().getState({ options: { retry: 15 } });
         if (action !== "Idle") {
           throw new Error("Client is not ready", action);
@@ -35,16 +34,13 @@ export class LeagueClient {
       } catch (e) {
         console.error("Error starting Riot processes:", e);
         await sleepInSeconds(1);
+        await new LeagueClient().stopRiotProcesses();
       }
     }
-    const { action } = await new LeagueClientUx().getState({ options: { retry: 10 } });
-    if (action !== "Idle") {
-      throw new Error("Client is not ready", action);
-    }
 
-    const { locale } = await new LeagueClientUx().getRegionLocale();
-    console.log("RCU response", await new RiotGameClient().getRegionLocale());
-    console.log("LCU response", await new LeagueClientUx().getRegionLocale());
+    const { locale } = await new LeagueClientUx().getRegionLocale(30);
+    console.log("RCU response", await new RiotGameClient().getRegionLocale(30));
+    console.log("LCU response", await new LeagueClientUx().getRegionLocale(30));
 
     if (locale !== params.locale) {
       throw new Error(`Locale is not correct: ${locale}`);

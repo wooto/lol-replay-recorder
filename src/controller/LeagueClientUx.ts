@@ -69,8 +69,8 @@ export class LeagueClientUx {
     return await makeRequest('GET', '/lol-game-settings/v1/input-settings');
   }
 
-  async getRegionLocale() {
-    return await makeRequest('GET', '/riotclient/region-locale');
+  async getRegionLocale(retries: number) {
+    return await makeRequest('GET', '/riotclient/region-locale', null, retries);
   }
 
   async patchGameSettings(settingsResource: any) {
