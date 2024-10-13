@@ -4,6 +4,8 @@ on:
   push:
     paths:
       - 'package.json'
+  release:
+    types: [published]
       
 
 jobs:
