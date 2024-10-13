@@ -21,7 +21,7 @@ export class LeagueClient {
     password: string,
   }) {
     await new LeagueClient().stopRiotProcesses();
-    this.setLocale(params.locale);
+    await this.setLocale(params.locale);
     for (let i = 0; i < 5; i++) {
       try {
         await new RiotGameClient().startRiotClient(params.region as any, params.locale);
@@ -133,7 +133,7 @@ export class LeagueClient {
     try {
       const editor = new IniEditor(path);
       const enableReplayApi = editor.data["config"]?.["General"]?.["EnableReplayApi"];
-      return enableReplayApi == 1 || enableReplayApi == true || enableReplayApi == "1";
+      return enableReplayApi === 1 || enableReplayApi === true || enableReplayApi === "1";
     } catch (error) {
       return false;
     }
