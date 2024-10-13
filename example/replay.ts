@@ -4,10 +4,11 @@ import { Locale } from '../src/model/Locale';
 const sleepInSeconds = (seconds: number) =>
   new Promise(resolve => setTimeout(resolve, seconds * 1000));
 
-await new LeagueClientUx().launchReplay('7070752623');
+await new LeagueClient().setDefaultInputIni();
+await new LeagueClientUx().launchReplay('7320621294');
 // await sleepInSeconds(20);
 
-await new LeagueReplayClient().focusBySummonerName('DRX Teddy');
+await new LeagueReplayClient().focusBySummonerName('Deft');
 await sleepInSeconds(3);
 const replay = new LeagueReplayClient();
   await replay.postPlaybackProperties({

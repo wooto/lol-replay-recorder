@@ -8,7 +8,6 @@ export class IniEditor {
   constructor(filename: string) {
     this.filename = filename;
     this.data = this.loadIni();
-    console.log(this.data);
   }
 
   private loadIni(): any {
