@@ -6,7 +6,6 @@ on:
       - 'package.json'
   release:
     types: [published]
-      
 
 jobs:
   release:
@@ -20,12 +19,20 @@ jobs:
         with:
           node-version: '20.x'
 
-      - id: get_version
+      - run: |
+          git fetch --depth=2
+          git diff HEAD^ HEAD -- package.json | grep '"version":'
+        id: check_version_change
+        continue-on-error: true
+
+      - name: Get version from package.json
+        if: success()
         run: |
           VERSION=$(node -p "require('./package.json').version")
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
       - name: Create Release
+        if: success()
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -38,8 +45,8 @@ jobs:
 
   publish:
     needs: release
-    timeout-minutes: 5
-    runs-on: [windows-latest]
+    if: success()
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
