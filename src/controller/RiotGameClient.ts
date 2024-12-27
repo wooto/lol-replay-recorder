@@ -61,6 +61,10 @@ export class RiotGameClient {
     await this.focusClientWindow();
     await sleepInSeconds(2);
 
+    for (const _ of Array.from({ length: 3 })) {
+      await WindowHandler.Handler.keyboardType(Key.Tab);
+    }
+
     for (const item of Array.from({ length: 10 })) {
       await WindowHandler.Handler.keyboardType(Key.Backspace);
     }
