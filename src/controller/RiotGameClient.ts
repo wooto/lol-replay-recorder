@@ -61,7 +61,7 @@ export class RiotGameClient {
     await this.focusClientWindow();
     await sleepInSeconds(2);
 
-    for (const _ of Array.from({ length: 3 })) {
+    for (const _ of Array.from({ length: 4 })) {
       await WindowHandler.Handler.keyboardType(Key.Tab);
     }
 
