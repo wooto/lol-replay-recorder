@@ -1,9 +1,6 @@
 name: Create Release on Version Change
 
 on:
-  push:
-    paths:
-      - 'package.json'
   release:
     types: [published]
 
