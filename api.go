@@ -100,19 +100,35 @@ type renderState struct {
 	CameraMode      string        `json:"cameraMode"`
 	SelectionOffset *cameraVector `json:"selectionOffset"`
 	CameraRotation  *cameraVector `json:"cameraRotation"`
+	CameraPosition  *cameraVector `json:"cameraPosition"`
 	SelectionName   string        `json:"selectionName"`
 	CameraAttached  *bool         `json:"cameraAttached"`
 }
 
-type cameraVector struct{ X, Y, Z float64 }
+type cameraVector struct {
+	X float64 `json:"x"`
+	Y float64 `json:"y"`
+	Z float64 `json:"z"`
+}
 
 func elevatedCamera(state renderState) bool {
-	if state.CameraMode != "fps" || state.SelectionOffset == nil || state.CameraRotation == nil {
+	return cameraPoseValid(state) && cameraOffsetWithinRange(state)
+}
+
+func cameraPoseValid(state renderState) bool {
+	if state.CameraMode != "fps" || state.SelectionOffset == nil || state.CameraRotation == nil || state.CameraPosition == nil {
 		return false
 	}
 	near := func(a, b float64) bool { return math.Abs(a-b) <= 0.5 }
 	o, r := state.SelectionOffset, state.CameraRotation
-	return near(o.X, 0) && near(o.Y, 1492.267578125) && near(o.Z, -1006.5472412109375) && near(r.X, 0) && near(r.Y, 56) && near(r.Z, 0)
+	p := state.CameraPosition
+	return finiteCameraVector(*o) && finiteCameraVector(*r) && finiteCameraVector(*p) &&
+		near(o.Y, baseCameraOffset.Y) &&
+		near(r.X, 0) && near(r.Y, 56) && near(r.Z, 0)
+}
+
+func cameraOffsetWithinRange(state renderState) bool {
+	return state.SelectionOffset != nil && horizontalDistance(*state.SelectionOffset, baseCameraOffset) <= maxCameraOffsetDrift
 }
 
 type recordingState struct {

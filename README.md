@@ -1,7 +1,7 @@
 # lol-replay-recorder
 
 A Go library for recording a local League of Legends replay with the camera
-attached to one player, with experimental observer-stream archiving and replay
+smoothly following one player, with experimental observer-stream archiving and replay
 HTTP serving. Video recording requires Windows amd64. MIT licensed; Go 1.26+.
 
 This branch replaces the historical TypeScript/npm implementation. Existing Git
@@ -70,8 +70,13 @@ replay, pauses and prepares at 0.1 seconds (champion objects are absent at exact
 zero on the tested client), identifies the complete Riot ID, selects through
 Replay API with verified keyboard fallback, and verifies camera attachment.
 A constant selection-name sequence reapplies the target through encoder seeks
-and respawns. An elevated camera offset and 56-degree angle are also maintained
+and respawns. An elevated camera height and 56-degree angle are also maintained
 and verified: attachment alone can otherwise leave the camera inside terrain.
+Horizontal following is eased instead of rigidly centering the player: the
+recorder reads camera position and attachment offset through Replay API and
+updates the offset as the selected player moves. It retains that player rather
+than switching to other fights. This is library-controlled camera motion, not
+the client's native directed spectator camera or the player's original inputs.
 On the tested patch, FPS capture skips the first five seconds with `startTime=0`.
 The recorder requests a five-second native pre-roll (`startTime=-5`) so the video
 can begin at game time zero. This is an observed client workaround, not a Riot
