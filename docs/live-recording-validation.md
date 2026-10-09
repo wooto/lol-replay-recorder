@@ -44,10 +44,29 @@ Observed during local testing on October 9, 2026:
 
 TDD regressions cover ignored API selection, death/respawn, unconfirmed or stale
 death data, same-target re-verification, encoder clock ownership, completion
-sentinels, and camera loss at completion. The live FULL acceptance status remains
-pending until a whole-game output passes decoding and duration validation.
+sentinels, and camera loss at completion.
 Camera-profile regressions also cover accepted-but-ignored settings, lost offset
 during capture, and persistent elevated tracks across encoder seeks.
 Further regressions reject short video hidden by full audio, preserve the native
 pre-roll, and accept ffprobe's empty WebM program section. Packet JSON is consumed
 one record at a time so long recordings do not accumulate all packet metadata.
+
+## FULL acceptance result
+
+On October 9, 2026, one compatible KR local replay passed `RecordFull` on Windows
+amd64 with patch 16.20.824.8524. The client used windowed 1280×720 and requested
+30 FPS. Launch used the caller-owned hook through an already authenticated client.
+The recording core did not log in, download the replay, or depend on LCU.
+
+- Replay length: 498.412384 seconds; WebM container: 498.304000 seconds.
+- First video packet: 0.035000 seconds; last packet end: 498.276000 seconds.
+- 13,350 video packets; VP9 video and Vorbis audio. Native real-time output is
+  variable-rate, so the requested 30 FPS is not a fixed count-per-second guarantee.
+- The first captured frame showed HUD 00:00; combat, death, and victory samples
+  retained the selected player's elevated camera. Live API monitoring also
+  reverified identity and the camera profile through death and respawn.
+- Full video decoding and packet-range validation succeeded. The owned replay
+  process exited during cleanup; no active game remained.
+
+This verifies one profile and replay, not every patch, game mode, machine, or the
+default 1920×1080/60 FPS profile. Observer-archive playback remains unverified.

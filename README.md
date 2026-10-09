@@ -5,13 +5,15 @@ attached to one player, with experimental observer-stream archiving and replay
 HTTP serving. Video recording requires Windows amd64. MIT licensed; Go 1.26+.
 
 This branch replaces the historical TypeScript/npm implementation. Existing Git
-history and npm tags remain intact. The first Go release is **v0.1.0-alpha.1**:
-**current-patch, real-game acceptance is pending**. Automated tests exercise HTTP
-fixtures, file integrity, orchestration, and failure behavior. They do not prove
-that the current KR client can replay an archive or capture an entire match.
+history and npm tags remain intact. **v0.1.0-alpha.2** passed one current-patch KR
+local-replay FULL recording on Windows: windowed 1280×720, requested 30 FPS,
+498.412 seconds of replay and 498.304 seconds of WebM. Video packet bounds,
+full video decoding, target/death/respawn checks, and owned-process cleanup passed.
+This is an experimental release; other patches, maps, profiles, and observer
+archive playback remain unverified. See [live validation](docs/live-recording-validation.md).
 
 ```powershell
-go get github.com/wooto/lol-replay-recorder@v0.1.0-alpha.1
+go get github.com/wooto/lol-replay-recorder@v0.1.0-alpha.2
 ```
 
 | Package | Responsibility |
@@ -43,7 +45,7 @@ Windows-only. Nothing depends on OP.GG.
 ## Use
 
 Import path: `github.com/wooto/lol-replay-recorder` (package `recorder`). Pin the
-alpha version explicitly; it is not a stable or live-validated release.
+alpha version explicitly; it is not a stable release.
 
 ```go
 target, err := recorder.ParseRiotID("Player#KR1")
@@ -99,7 +101,7 @@ disabled. The default transport tolerates the game's local certificate; set
 
 The default launch uses the `.rofl` as its first argument and the installation's
 `-GameBaseDir`. `ExtraLaunchArgs` can override these additional arguments. Current
-client launch and encoding behavior need live validation;
+direct executable launch remains unverified on the tested installation;
 unsupported or unverifiable behavior fails instead of reporting FULL success.
 
 Current Windows installations can deny direct game executable launch even while
