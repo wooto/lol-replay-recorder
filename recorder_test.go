@@ -540,6 +540,97 @@ func TestRecordFull(t *testing.T) {
 		t.Fatal("output reservation leaked")
 	}
 }
+
+type fixtureHotkeys struct {
+	keys        [10]uint16
+	events      []string
+	ignoreApply bool
+	backupErr   error
+}
+
+func (h *fixtureHotkeys) Read(context.Context) ([10]uint16, error) {
+	h.events = append(h.events, "read")
+	return h.keys, nil
+}
+func (h *fixtureHotkeys) Backup(context.Context) error {
+	h.events = append(h.events, "backup")
+	return h.backupErr
+}
+func (h *fixtureHotkeys) Apply(_ context.Context, keys [10]uint16) error {
+	h.events = append(h.events, "apply")
+	if !h.ignoreApply {
+		h.keys = keys
+	}
+	return nil
+}
+func TestRecordFullRejectsMismatchedHotkeysBeforeLaunch(t *testing.T) {
+	r, request, f := testRecorder(t, "")
+	h := &fixtureHotkeys{keys: [10]uint16{'9', '2', '3', '4', '5', 'Q', 'W', 'E', 'R', 'T'}}
+	r.config.Hotkeys = h
+	_, err := r.RecordFull(context.Background(), request)
+	if !errors.Is(err, ErrHotkeySettings) || f.launched {
+		t.Fatalf("mismatched keys must stop before launch: err=%v launched=%v", err, f.launched)
+	}
+	if fmt.Sprint(h.events) != "[read]" {
+		t.Fatalf("check-only changed settings: %v", h.events)
+	}
+}
+
+func TestRecordFullConfiguresHotkeysWithBackupAndReadback(t *testing.T) {
+	r, request, f := testRecorder(t, "")
+	h := &fixtureHotkeys{keys: [10]uint16{'9', '2', '3', '4', '5', 'Q', 'W', 'E', 'R', 'T'}}
+	r.config.Hotkeys, r.config.ConfigureHotkeys = h, true
+	_, err := r.RecordFull(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fmt.Sprint(h.events) != "[read backup apply read]" || !f.launched {
+		t.Fatalf("must back up, apply and verify before launch: events=%v launched=%v", h.events, f.launched)
+	}
+}
+
+func TestRecordFullDoesNotConfigureUnknownHotkeys(t *testing.T) {
+	r, request, f := testRecorder(t, "")
+	h := &fixtureHotkeys{}
+	r.config.Hotkeys, r.config.ConfigureHotkeys = h, true
+	_, err := r.RecordFull(context.Background(), request)
+	if !errors.Is(err, ErrHotkeySettings) || f.launched || fmt.Sprint(h.events) != "[read]" {
+		t.Fatalf("unknown settings must not be rewritten: err=%v events=%v launched=%v", err, h.events, f.launched)
+	}
+}
+
+func TestRecordFullHotkeyApplyFailuresStopBeforeLaunch(t *testing.T) {
+	for _, scenario := range []string{"backup-failed", "apply-ignored", "backup-cancelled"} {
+		t.Run(scenario, func(t *testing.T) {
+			r, request, f := testRecorder(t, "")
+			h := &fixtureHotkeys{keys: [10]uint16{'9', '2', '3', '4', '5', 'Q', 'W', 'E', 'R', 'T'}}
+			if scenario == "backup-failed" {
+				h.backupErr = errors.New("backup unavailable")
+			}
+			if scenario == "backup-cancelled" {
+				h.backupErr = context.Canceled
+			}
+			if scenario == "apply-ignored" {
+				h.ignoreApply = true
+			}
+			r.config.Hotkeys, r.config.ConfigureHotkeys = h, true
+			result, err := r.RecordFull(context.Background(), request)
+			if !errors.Is(err, ErrHotkeySettings) || f.launched || result.Path != "" {
+				t.Fatalf("failed settings must prevent launch and result: err=%v launched=%v result=%+v", err, f.launched, result)
+			}
+			want := "[read backup]"
+			if scenario == "apply-ignored" {
+				want = "[read backup apply read]"
+			}
+			if fmt.Sprint(h.events) != want {
+				t.Fatalf("unexpected settings operations: %v", h.events)
+			}
+			if scenario == "backup-cancelled" && !errors.Is(err, context.Canceled) {
+				t.Fatal("lost cancellation cause")
+			}
+		})
+	}
+}
 func TestFailedRecordingsDoNotReturnFullResult(t *testing.T) {
 	tests := []struct {
 		mode  string
