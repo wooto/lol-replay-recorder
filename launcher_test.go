@@ -48,6 +48,19 @@ func TestIgnoredCameraFollowOffsetCannotReportFullSuccess(t *testing.T) {
 	}
 }
 
+func TestDelayedCameraFollowOffsetEchoIsAcknowledged(t *testing.T) {
+	r, request, f := testRecorder(t, "camera-follow-delayed-offset")
+	r.config.PollInterval = 50 * time.Millisecond
+	if _, err := r.RecordFull(context.Background(), request); err != nil {
+		t.Fatalf("delayed but applied camera follow update must complete: %v", err)
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.followOffsets) == 0 {
+		t.Fatal("delayed camera follow update was never applied")
+	}
+}
+
 func TestUncommandedCameraOffsetDriftCannotResetFollower(t *testing.T) {
 	for _, mode := range []string{"camera-offset-drift-bounded", "camera-offset-drift-large"} {
 		t.Run(mode, func(t *testing.T) {

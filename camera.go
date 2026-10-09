@@ -1,6 +1,7 @@
 package recorder
 
 import (
+	"fmt"
 	"math"
 	"time"
 )
@@ -12,6 +13,9 @@ var (
 
 const (
 	cameraFollowTimeConstant = 180 * time.Millisecond
+	cameraOffsetAckInterval  = 50 * time.Millisecond
+	cameraOffsetAckAttempts  = 6
+	cameraOffsetAckTimeout   = 250 * time.Millisecond
 	maxCameraOffsetDrift     = 500.0
 	maxCameraTargetJump      = 500.0
 )
@@ -103,4 +107,11 @@ func cameraPollInterval(configured time.Duration) time.Duration {
 
 func cameraOffsetMatches(actual, expected cameraVector) bool {
 	return horizontalDistance(actual, expected) <= 2 && math.Abs(actual.Y-expected.Y) <= 0.5
+}
+
+func cameraOffsetAckError(gameTime float64, actual *cameraVector, expected cameraVector) error {
+	if actual == nil {
+		return fmt.Errorf("%w at %.3fs (camera follow offset readback unavailable, expected %+v)", ErrCameraLock, gameTime, expected)
+	}
+	return fmt.Errorf("%w at %.3fs (camera follow offset readback %+v, expected %+v)", ErrCameraLock, gameTime, *actual, expected)
 }

@@ -38,14 +38,16 @@ func TestConnectionRefusedFromClosedLocalListener(t *testing.T) {
 }
 
 type fixture struct {
-	cameraProfile     bool
-	cameraTrack       bool
-	cameraOffsetTrack bool
-	followOffsets     []cameraVector
-	selectionOffset   cameraVector
-	enforced          bool
-	restored          bool
-	sequence          []struct {
+	cameraProfile      bool
+	cameraTrack        bool
+	cameraOffsetTrack  bool
+	followOffsets      []cameraVector
+	selectionOffset    cameraVector
+	pendingOffset      *cameraVector
+	pendingOffsetReads int
+	enforced           bool
+	restored           bool
+	sequence           []struct {
 		Time  float64 `json:"time"`
 		Value string  `json:"value"`
 	}
@@ -196,6 +198,13 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 					encode(map[string]any{})
 					return
 				}
+				if f.mode == "camera-follow-delayed-offset" && raw["cameraMode"] == nil {
+					pending := cameraVector{X: offset.X, Y: offset.Y, Z: offset.Z}
+					f.pendingOffset = &pending
+					f.pendingOffsetReads = 2
+					encode(map[string]any{})
+					return
+				}
 				f.selectionOffset = cameraVector{X: offset.X, Y: offset.Y, Z: offset.Z}
 				if raw["cameraMode"] == nil {
 					f.followOffsets = append(f.followOffsets, f.selectionOffset)
@@ -227,6 +236,15 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 			http.Error(w, "fixture requires keyboard selection", http.StatusMethodNotAllowed)
 			return
 		}
+		if f.pendingOffset != nil {
+			if f.pendingOffsetReads > 0 {
+				f.pendingOffsetReads--
+			} else {
+				f.selectionOffset = *f.pendingOffset
+				f.followOffsets = append(f.followOffsets, f.selectionOffset)
+				f.pendingOffset = nil
+			}
+		}
 		attached := f.selected && f.mode != "target-lock" && !(f.mode == "lost-lock" && f.ticks >= 2)
 		if f.mode == "reset-lost-lock" && f.ticks >= 4 {
 			attached = false
@@ -251,7 +269,7 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 		}
 		camera := map[string]any{"selectionName": name, "cameraAttached": attached,
 			"cameraMode": "fps", "selectionOffset": f.selectionOffset, "cameraRotation": map[string]any{"x": 0, "y": 56, "z": 0}}
-		if f.mode == "camera-follow" || f.mode == "camera-follow-ignored-offset" {
+		if f.mode == "camera-follow" || f.mode == "camera-follow-ignored-offset" || f.mode == "camera-follow-delayed-offset" {
 			targetX := 5000 + float64(f.ticks)*20
 			cameraPosition := cameraVector{X: targetX + f.selectionOffset.X, Y: 100 + f.selectionOffset.Y, Z: 5000 + f.selectionOffset.Z}
 			camera["cameraPosition"] = cameraPosition

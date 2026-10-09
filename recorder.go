@@ -119,6 +119,46 @@ func wait(ctx context.Context, interval time.Duration) error {
 		return nil
 	}
 }
+
+func (r *Recorder) waitForCameraOffset(ctx context.Context, target player, id RiotID, expected cameraVector, gameTime float64) (renderState, bool, error) {
+	ackCtx, cancel := context.WithTimeout(ctx, cameraOffsetAckTimeout)
+	defer cancel()
+	var latest renderState
+	for attempt := 0; attempt < cameraOffsetAckAttempts; attempt++ {
+		if err := r.api.request(ackCtx, "GET", "/replay/render", nil, &latest); err != nil {
+			if ctx.Err() != nil {
+				return latest, false, ctx.Err()
+			}
+			if errors.Is(err, context.DeadlineExceeded) {
+				return latest, false, cameraOffsetAckError(gameTime, latest.SelectionOffset, expected)
+			}
+			return latest, false, err
+		}
+		if !cameraPoseValid(latest) || !cameraOffsetWithinRange(latest) {
+			return latest, false, fmt.Errorf("%w at %.3fs (camera profile changed while awaiting offset readback %+v, expected %+v)", ErrCameraLock, gameTime, latest.SelectionOffset, expected)
+		}
+		if latest.SelectionName == "" && latest.CameraAttached != nil && *latest.CameraAttached {
+			return latest, true, nil
+		}
+		if !locked(latest, target, id) {
+			return latest, false, fmt.Errorf("%w at %.3fs (selection %q while awaiting camera offset readback)", ErrCameraLock, gameTime, latest.SelectionName)
+		}
+		if cameraOffsetMatches(*latest.SelectionOffset, expected) {
+			return latest, false, nil
+		}
+		if attempt+1 == cameraOffsetAckAttempts {
+			return latest, false, cameraOffsetAckError(gameTime, latest.SelectionOffset, expected)
+		}
+		if err := wait(ackCtx, cameraOffsetAckInterval); err != nil {
+			if ctx.Err() != nil {
+				return latest, false, ctx.Err()
+			}
+			return latest, false, cameraOffsetAckError(gameTime, latest.SelectionOffset, expected)
+		}
+	}
+	return latest, false, cameraOffsetAckError(gameTime, latest.SelectionOffset, expected)
+}
+
 func validateRequest(request Request) (Request, error) {
 	id, err := ParseRiotID(request.Target.String())
 	if err != nil {
@@ -534,7 +574,20 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 				if err = r.api.request(recordingCtx, "POST", "/replay/render", map[string]any{"selectionOffset": offset}, nil); err != nil {
 					return result, fmt.Errorf("update camera follow offset: %w", err)
 				}
-				expectedCameraOffset = offset
+				var selectionLost bool
+				var acknowledged renderState
+				acknowledged, selectionLost, err = r.waitForCameraOffset(recordingCtx, target, request.Target, offset, state.Current)
+				if err != nil {
+					return result, err
+				}
+				if selectionLost {
+					follower.suspend()
+					if err = wait(recordingCtx, cameraPollInterval(r.config.PollInterval)); err != nil {
+						return result, err
+					}
+					continue
+				}
+				expectedCameraOffset = *acknowledged.SelectionOffset
 			} else {
 				// Keep readback as the acknowledgement when smoothing does not move
 				// far enough to send a new command.
