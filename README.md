@@ -5,13 +5,15 @@ attached to one player, with experimental observer-stream archiving and replay
 HTTP serving. Video recording requires Windows amd64. MIT licensed; Go 1.26+.
 
 This branch replaces the historical TypeScript/npm implementation. Existing Git
-history and npm tags remain intact. The first Go release is **v0.1.0-alpha.1**:
-**current-patch, real-game acceptance is pending**. Automated tests exercise HTTP
-fixtures, file integrity, orchestration, and failure behavior. They do not prove
-that the current KR client can replay an archive or capture an entire match.
+history and npm tags remain intact. **v0.1.0-alpha.2** passed one current-patch KR
+local-replay FULL recording on Windows: windowed 1280×720, requested 30 FPS,
+498.412 seconds of replay and 498.304 seconds of WebM. Video packet bounds,
+full video decoding, target/death/respawn checks, and owned-process cleanup passed.
+This is an experimental release; other patches, maps, profiles, and observer
+archive playback remain unverified. See [live validation](docs/live-recording-validation.md).
 
 ```powershell
-go get github.com/wooto/lol-replay-recorder@v0.1.0-alpha.1
+go get github.com/wooto/lol-replay-recorder@v0.1.0-alpha.2
 ```
 
 | Package | Responsibility |
@@ -36,14 +38,14 @@ Windows-only. Nothing depends on OP.GG.
   EnableReplayApi=1
   ```
 - `ffprobe` on PATH, or `Config.ProbeExecutable` set to its executable path.
-- Standard spectator player bindings `1–5` and `Q–T`, or explicit
+- For keyboard fallback, standard spectator player bindings `1–5` and `Q–T`, or explicit
   `Config.SelectionKeys`. The library does not rewrite game settings.
 - No existing game using the local Replay API. The library takes game-window focus.
 
 ## Use
 
 Import path: `github.com/wooto/lol-replay-recorder` (package `recorder`). Pin the
-alpha version explicitly; it is not a stable or live-validated release.
+alpha version explicitly; it is not a stable release.
 
 ```go
 target, err := recorder.ParseRiotID("Player#KR1")
@@ -64,10 +66,28 @@ fmt.Println(result.Path)
 
 The output directory must exist and the output file must not exist. Defaults are
 1920×1080 at 60 FPS, normal playback speed, and WebM. The library launches the
-replay, pauses and seeks to zero, identifies the complete Riot ID, double-selects
-the player, and verifies camera attachment before starting capture. It monitors
-the camera and recording state, requires observed start and completion covering
-the replay length, then checks file stability and decodes frames with ffprobe.
+replay, pauses and prepares at 0.1 seconds (champion objects are absent at exact
+zero on the tested client), identifies the complete Riot ID, selects through
+Replay API with verified keyboard fallback, and verifies camera attachment.
+A constant selection-name sequence reapplies the target through encoder seeks
+and respawns. An elevated camera offset and 56-degree angle are also maintained
+and verified: attachment alone can otherwise leave the camera inside terrain.
+On the tested patch, FPS capture skips the first five seconds with `startTime=0`.
+The recorder requests a five-second native pre-roll (`startTime=-5`) so the video
+can begin at game time zero. This is an observed client workaround, not a Riot
+compatibility guarantee. It monitors
+the camera and recording state, allows an empty selection during explicitly
+confirmed target death with the camera still attached while retaining the target
+track, requires observed start and completion covering
+the replay length, then checks file stability, decodes video frames with ffprobe,
+and verifies the first and final video packet timestamps. Audio/container length
+alone cannot prove full video coverage. Packet metadata is parsed as a stream.
+Playback starts before the encoder, following League Director's recording order.
+Capture uses real-time mode (`enforceFrameRate=false`): the current client's
+accelerated mode produced shortened output during local tests. Completion also
+handles the native `endTime=-1` sentinel without skipping target-camera or media
+validation. Empty attached selections are retried once; the death exception
+requires an explicit target death with a clock aligned to the recording.
 
 Errors return no successful result. `*recorder.Error` includes the stage and any
 partial output path; partial video is retained. Use `errors.Is` for cancellation
@@ -81,8 +101,16 @@ disabled. The default transport tolerates the game's local certificate; set
 
 The default launch uses the `.rofl` as its first argument and the installation's
 `-GameBaseDir`. `ExtraLaunchArgs` can override these additional arguments. Current
-client launch, selection-name fields, and encoding behavior need live validation;
+direct executable launch remains unverified on the tested installation;
 unsupported or unverifiable behavior fails instead of reporting FULL success.
+
+Current Windows installations can deny direct game executable launch even while
+the logged-in League client's replay-watch operation succeeds. Applications can
+set `Config.LaunchReplay` to launch through their client integration and return
+an owned `recorder.ReplayProcess` (`PID`, `Exited`, `Close`). The recorder still
+checks API/process identity and closes only that owned game. The callback must
+not adopt an already running game and must clean up its own failed launches.
+This hook adds no login, replay-download, or LCU dependency to the recording core.
 
 Local `.rofl` downloading, Riot login, player-directory crawling, uploading, and
 transcoding belong to the calling application. Optional active-game lookup is in

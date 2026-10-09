@@ -1,6 +1,7 @@
 package recorder
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -58,6 +59,11 @@ type Progress struct {
 // ExtraLaunchArgs override the default launch arguments when non-nil.
 type Config struct {
 	GameExecutable string
+	// LaunchReplay optionally launches through the calling application's client
+	// integration. It must return only the process it launched, never an existing
+	// game, and honor context cancellation. On failure it must clean up any process
+	// it started.
+	LaunchReplay func(context.Context, string) (ReplayProcess, error)
 	// ProbeExecutable defaults to ffprobe. It validates the finalized WebM.
 	ProbeExecutable string
 	ExtraLaunchArgs []string
@@ -74,6 +80,15 @@ type Config struct {
 	StrictTLS  bool
 	Logger     *slog.Logger
 	OnProgress func(Progress)
+}
+
+// ReplayProcess is an owned game started by Config.LaunchReplay. Close must
+// terminate only this process and release its resources. Methods must be safe
+// to call while the game exits; PID must remain stable and positive.
+type ReplayProcess interface {
+	PID() int
+	Exited() bool
+	Close() error
 }
 
 // Request records the whole replay at normal speed. Only WebM output is supported

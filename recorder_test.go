@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -14,7 +15,37 @@ import (
 	"time"
 )
 
+func TestConnectionRefusedFromClosedLocalListener(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	address := listener.Addr().String()
+	if err := listener.Close(); err != nil {
+		t.Fatal(err)
+	}
+	conn, err := net.DialTimeout("tcp", address, time.Second)
+	if conn != nil {
+		conn.Close()
+		t.Fatal("unexpected connection")
+	}
+	if !connectionRefused(err) {
+		t.Fatalf("closed local port should permit launch: %v", err)
+	}
+	if connectionRefused(context.DeadlineExceeded) {
+		t.Fatal("timeout must not permit launch")
+	}
+}
+
 type fixture struct {
+	cameraProfile bool
+	cameraTrack   bool
+	enforced      bool
+	restored      bool
+	sequence      []struct {
+		Time  float64 `json:"time"`
+		Value string  `json:"value"`
+	}
 	mu                                            sync.Mutex
 	launched, selected, closed, stopped, verified bool
 	mode                                          string
@@ -57,11 +88,34 @@ func (v fakeVerifier) verify(_ context.Context, path string, duration float64) e
 	v.f.mu.Lock()
 	defer v.f.mu.Unlock()
 	v.f.verified = true
+	if v.f.mode == "native-empty-programs" {
+		return validateProbe([]byte(`{"programs":[],"format":{"duration":"90"},"streams":[{"codec_type":"video","nb_read_frames":"2700"}],"packets":[{"pts_time":"0","duration_time":"0.033"},{"pts_time":"89.967","duration_time":"0.033"}]}`), duration)
+	}
+	if v.f.mode == "native-preroll" {
+		if v.f.start != -5 {
+			return validateProbe([]byte(`{"format":{"duration":"90"},"streams":[{"codec_type":"video","nb_read_frames":"2500"}],"packets":[{"pts_time":"0","duration_time":"0.033"},{"pts_time":"84.967","duration_time":"0.033"}]}`), duration)
+		}
+		return validateProbe([]byte(`{"format":{"duration":"90"},"streams":[{"codec_type":"video","nb_read_frames":"2700"}],"packets":[{"pts_time":"0","duration_time":"0.033"},{"pts_time":"89.967","duration_time":"0.033"}]}`), duration)
+	}
+	if v.f.mode == "native-video-short" {
+		return validateProbe([]byte(`{"format":{"duration":"90"},"streams":[{"codec_type":"video","nb_read_frames":"1350"}],"packets":[{"pts_time":"0","duration_time":"0.033"},{"pts_time":"44.967","duration_time":"0.033"}]}`), duration)
+	}
+	if v.f.mode == "camera-offset" && (!v.f.cameraProfile || !v.f.cameraTrack) {
+		return ErrCameraLock
+	}
 	if v.f.mode == "corrupt" {
 		return ErrRecordingIncomplete
 	}
 	if path != v.f.path || duration != 90 {
 		return errors.New("incorrect output passed to verifier")
+	}
+	if v.f.mode == "native-wall-clock" {
+		// This native-client fixture models the observed accelerated encoder:
+		// a whole game yields shortened media, despite successful API progress.
+		if v.f.enforced {
+			return validateProbe([]byte(`{"format":{"duration":"45"},"streams":[{"codec_type":"video","nb_read_frames":"1350"}]}`), duration)
+		}
+		return validateProbe([]byte(`{"format":{"duration":"90"},"streams":[{"codec_type":"video","nb_read_frames":"2700"}],"packets":[{"pts_time":"0","duration_time":"0.033"},{"pts_time":"89.967","duration_time":"0.033"}]}`), duration)
 	}
 	return nil
 }
@@ -88,22 +142,135 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 		}
 		encode(map[string]any{"processID": pid})
 	case "/replay/playback":
+		if f.mode == "encoder-clock" && request.Method == "POST" && f.path != "" {
+			http.Error(w, "encoder owns playback clock", http.StatusConflict)
+			return
+		}
 		length := 90
 		if f.mode == "load-timeout" {
 			length = 0
 		}
-		encode(map[string]any{"length": length, "time": 0, "paused": true, "seeking": false})
+		current := 0
+		if (f.mode == "reset-on-complete" || f.mode == "reset-lost-lock") && f.ticks >= 4 {
+			current = 90
+		}
+		encode(map[string]any{"length": length, "time": current, "paused": true, "seeking": false})
 	case "/liveclientdata/allgamedata":
-		encode(map[string]any{"allPlayers": []map[string]any{
+		var dead any = (f.mode == "death-respawn" || f.mode == "death-unattached" || f.mode == "death-other-player" || f.mode == "death-stale-data") && f.ticks == 2
+		if f.mode == "death-unknown" {
+			dead = nil
+		}
+		gameTime := float64(f.ticks) * 30
+		if f.mode == "death-stale-data" {
+			gameTime = 0
+		}
+		encode(map[string]any{"gameData": map[string]any{"gameTime": gameTime}, "allPlayers": []map[string]any{
 			{"riotIdGameName": "Player", "riotIdTagLine": "WRONG", "summonerName": "Player#WRONG", "team": "ORDER"},
-			{"riotIdGameName": "Player", "riotIdTagLine": "KR1", "summonerName": "Player#KR1", "team": "ORDER"},
+			{"riotIdGameName": "Player", "riotIdTagLine": "KR1", "summonerName": "Player#KR1", "team": "ORDER", "isDead": dead},
 		}})
 	case "/replay/render":
+		if request.Method == "POST" {
+			var raw map[string]json.RawMessage
+			if err := json.NewDecoder(request.Body).Decode(&raw); err != nil {
+				http.Error(w, "invalid render", 400)
+				return
+			}
+			if raw["selectionOffset"] != nil {
+				var offset struct{ X, Y, Z float64 }
+				var rotation struct{ X, Y, Z float64 }
+				var mode string
+				json.Unmarshal(raw["selectionOffset"], &offset)
+				json.Unmarshal(raw["cameraRotation"], &rotation)
+				json.Unmarshal(raw["cameraMode"], &mode)
+				f.cameraProfile = mode == "fps" && offset.X == 0 && offset.Y > 1400 && offset.Y < 1600 && offset.Z < -900 && offset.Z > -1100 && rotation.Y == 56
+				encode(map[string]any{})
+				return
+			}
+			if f.mode == "ignored-api" {
+				encode(map[string]any{})
+				return
+			}
+			if f.mode == "api-selection" || f.mode == "respawn-race" {
+				var body struct {
+					Name string `json:"selectionName"`
+				}
+				data, _ := json.Marshal(raw)
+				if err := json.Unmarshal(data, &body); err != nil {
+					t := "invalid selection"
+					http.Error(w, t, 400)
+					return
+				}
+				f.selected = body.Name == "Player#KR1"
+				if f.mode == "respawn-race" && f.ticks == 2 {
+					f.restored = true
+				}
+				encode(map[string]any{})
+				return
+			}
+			http.Error(w, "fixture requires keyboard selection", http.StatusMethodNotAllowed)
+			return
+		}
 		attached := f.selected && f.mode != "target-lock" && !(f.mode == "lost-lock" && f.ticks >= 2)
-		encode(map[string]any{"selectionName": "Player#KR1", "cameraAttached": attached})
+		if f.mode == "reset-lost-lock" && f.ticks >= 4 {
+			attached = false
+		}
+		name := "Player#KR1"
+		if f.mode == "respawn-race" && f.ticks == 2 && !f.restored {
+			name = ""
+		}
+		if f.mode == "death-respawn" && f.ticks == 2 {
+			name = ""
+		}
+		if f.ticks == 2 {
+			switch f.mode {
+			case "death-unattached":
+				name = ""
+				attached = false
+			case "death-other-player":
+				name = "Player#WRONG"
+			case "death-unknown", "death-stale-data":
+				name = ""
+			}
+		}
+		camera := map[string]any{"selectionName": name, "cameraAttached": attached,
+			"cameraMode": "fps", "selectionOffset": map[string]any{"x": 0, "y": 1492.267578125, "z": -1006.5472412109375}, "cameraRotation": map[string]any{"x": 0, "y": 56, "z": 0}}
+		if f.mode == "camera-profile-ignored" {
+			delete(camera, "selectionOffset")
+		}
+		if f.mode == "camera-profile-drift" && f.ticks >= 2 {
+			camera["selectionOffset"] = map[string]any{"x": 0, "y": 0, "z": 0}
+		}
+		encode(camera)
+	case "/replay/sequence":
+		if f.mode == "sequence-error" {
+			http.Error(w, "sequence unavailable", 500)
+			return
+		}
+		var body struct {
+			Offset []struct {
+				Time  float64
+				Value struct{ X, Y, Z float64 }
+			} `json:"selectionOffset"`
+			Rotation []struct {
+				Time  float64
+				Value struct{ X, Y, Z float64 }
+			} `json:"cameraRotation"`
+			Selection []struct {
+				Time  float64 `json:"time"`
+				Value string  `json:"value"`
+			} `json:"selectionName"`
+		}
+		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+			http.Error(w, "invalid sequence", 400)
+			return
+		}
+		f.sequence = body.Selection
+		f.cameraTrack = len(body.Offset) == 2 && body.Offset[0].Time == 0 && body.Offset[1].Time == 90 && body.Offset[0].Value.Y > 1400 && body.Offset[1].Value.Y > 1400 && body.Offset[0].Value.Z < -900 && body.Offset[1].Value.Z < -900 && len(body.Rotation) == 2 && body.Rotation[0].Value.Y == 56 && body.Rotation[1].Value.Y == 56
+		encode(map[string]any{})
 	case "/replay/recording":
 		if request.Method == "POST" {
 			var body struct {
+				Enforced  bool    `json:"enforceFrameRate"`
 				Recording bool    `json:"recording"`
 				Path      string  `json:"path"`
 				Start     float64 `json:"startTime"`
@@ -114,6 +281,7 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 				return
 			}
 			if body.Recording {
+				f.enforced = body.Enforced
 				f.path = body.Path
 				f.start = body.Start
 				f.end = body.End
@@ -159,6 +327,14 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 				return
 			}
 		}
+		if !active && (f.mode == "reset-on-complete" || f.mode == "reset-lost-lock") {
+			encode(map[string]any{"recording": false, "path": "", "currentTime": 0, "startTime": -1, "endTime": -1})
+			return
+		}
+		if !active && f.mode == "native-complete" {
+			encode(map[string]any{"recording": false, "path": path, "currentTime": 90, "startTime": f.start, "endTime": -1})
+			return
+		}
 		encode(map[string]any{"recording": active, "path": path, "startTime": f.start, "endTime": f.end, "currentTime": current})
 	default:
 		http.NotFound(w, request)
@@ -193,7 +369,7 @@ func TestRecordFull(t *testing.T) {
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if !f.selected || !f.verified || !f.closed || f.start != 0 || f.end != 90 {
+	if !f.selected || !f.verified || !f.closed || f.start != -5 || f.end != 90 {
 		t.Fatalf("incomplete lifecycle: %+v", f)
 	}
 	if _, err := os.Stat(request.OutputPath + ".recorder-lock"); !errors.Is(err, os.ErrNotExist) {

@@ -9,6 +9,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -20,6 +21,30 @@ type replayProcess interface {
 	exited() bool
 	close() error
 }
+
+type customProcess struct{ ReplayProcess }
+
+func (p customProcess) pid() int     { return p.PID() }
+func (p customProcess) exited() bool { return p.Exited() }
+func (p customProcess) close() error { return p.Close() }
+
+func (r *Recorder) launch(ctx context.Context, path string) (replayProcess, error) {
+	if r.config.LaunchReplay == nil {
+		return r.desktop.launch(ctx, r.config, path)
+	}
+	process, err := r.config.LaunchReplay(ctx, path)
+	if err != nil {
+		return nil, err
+	}
+	if process == nil {
+		return nil, errors.New("LaunchReplay returned no process")
+	}
+	if process.PID() <= 0 {
+		return nil, errors.Join(errors.New("LaunchReplay returned an invalid process ID"), process.Close())
+	}
+	return customProcess{process}, nil
+}
+
 type desktop interface {
 	acquire() (func(), error)
 	launch(context.Context, Config, string) (replayProcess, error)
@@ -188,7 +213,7 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 	defer func() { _ = lock.Close(); _ = os.Remove(lock.Name()) }()
 	var existing gameState
 	if preflight := r.api.request(ctx, "GET", "/replay/game", nil, &existing); preflight != nil {
-		if !errors.Is(preflight, syscall.ECONNREFUSED) {
+		if !connectionRefused(preflight) {
 			return result, fmt.Errorf("check existing replay client: %w", preflight)
 		}
 	} else if existing.PID > 0 {
@@ -199,7 +224,7 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 	}
 	stage = StageLaunch
 	r.emit(stage, 0, 0)
-	process, err := r.desktop.launch(ctx, r.config, request.ReplayPath)
+	process, err := r.launch(ctx, request.ReplayPath)
 	if err != nil {
 		return result, err
 	}
@@ -256,7 +281,10 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 		return result, ErrClientBusy
 	}
 	// Seek and pause before targeting, so no game content is lost during setup.
-	if err = r.api.request(loadCtx, "POST", "/replay/playback", map[string]any{"time": 0, "paused": true, "speed": 1}, nil); err != nil {
+	// At exact time zero current clients have not created selectable champions.
+	// Prepare within the existing 250 ms start tolerance; recording still requests
+	// a five-second native pre-roll and validates the decoded video from zero.
+	if err = r.api.request(loadCtx, "POST", "/replay/playback", map[string]any{"time": 0.1, "paused": true, "speed": 1}, nil); err != nil {
 		return result, err
 	}
 	for {
@@ -281,9 +309,20 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 	stage = StageTarget
 	r.emit(stage, 0, length)
 	verified := false
+	selectionName := ""
 	for attempt := 0; attempt < 5; attempt++ {
-		if err = r.desktop.selectPlayer(loadCtx, process.pid(), r.config.SelectionKeys[index]); err != nil {
-			return result, err
+		name := request.Target.String()
+		if target.NameUnique {
+			name = request.Target.GameName
+		}
+		// Prefer the documented Replay API over keyboard bindings. A short name is
+		// safe only after proving it identifies exactly one participant.
+		// A successful POST can still ignore an unsupported selection name.
+		// After its first unverified result, try the configured player bindings.
+		if attempt > 0 || r.api.request(loadCtx, "POST", "/replay/render", map[string]any{"selectionName": name, "cameraAttached": true}, nil) != nil {
+			if err = r.desktop.selectPlayer(loadCtx, process.pid(), r.config.SelectionKeys[index]); err != nil {
+				return result, err
+			}
 		}
 		if err = wait(loadCtx, r.config.PollInterval); err != nil {
 			return result, err
@@ -294,10 +333,46 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 		}
 		if locked(render, target, request.Target) {
 			verified = true
+			selectionName = render.SelectionName
 			break
 		}
 	}
 	if !verified {
+		return result, ErrCameraLock
+	}
+	// A selection track places the camera at the object's origin unless an
+	// offset is supplied. Use the client's normal 56-degree elevated view;
+	// name/attachment alone can otherwise report success from inside terrain.
+	offset := map[string]float64{"x": 0, "y": 1492.267578125, "z": -1006.5472412109375}
+	rotation := map[string]float64{"x": 0, "y": 56, "z": 0}
+	if err = r.api.request(loadCtx, "POST", "/replay/render", map[string]any{
+		"cameraMode": "fps", "selectionOffset": offset, "cameraRotation": rotation,
+	}, nil); err != nil {
+		return result, err
+	}
+	// Apply a constant selection track so encoder seeks reselect the same player
+	// on every render frame, rather than losing the object reference at time zero.
+	if err = r.api.request(loadCtx, "POST", "/replay/sequence", map[string]any{
+		"selectionName": []map[string]any{
+			{"time": 0, "value": selectionName, "blend": "snap"},
+			{"time": length, "value": selectionName, "blend": "snap"},
+		},
+		"selectionOffset": []map[string]any{
+			{"time": 0, "value": offset, "blend": "snap"},
+			{"time": length, "value": offset, "blend": "snap"},
+		},
+		"cameraRotation": []map[string]any{
+			{"time": 0, "value": rotation, "blend": "snap"},
+			{"time": length, "value": rotation, "blend": "snap"},
+		},
+	}, nil); err != nil {
+		return result, err
+	}
+	var prepared renderState
+	if err = r.api.request(loadCtx, "GET", "/replay/render", nil, &prepared); err != nil {
+		return result, err
+	}
+	if !elevatedCamera(prepared) {
 		return result, ErrCameraLock
 	}
 	if _, e = os.Lstat(request.OutputPath); e == nil {
@@ -308,13 +383,21 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 	stage = StageRecord
 	r.emit(stage, 0, length)
 	start := time.Now().UTC()
-	attemptedRecording = true // Even a failed POST can have reached the game.
-	mayHaveOutput = true
-	options := map[string]any{"recording": true, "path": request.OutputPath, "codec": "webm", "startTime": 0, "endTime": length, "width": request.Width, "height": request.Height, "framesPerSecond": request.FPS, "enforceFrameRate": true, "replaySpeed": 1}
-	if err = r.api.request(ctx, "POST", "/replay/recording", options, nil); err != nil {
+	// League Director starts playback before enabling the recorder. Afterwards
+	// the encoder owns playback timing to enforce the requested frame rate.
+	if err = r.api.request(ctx, "POST", "/replay/playback", map[string]any{"paused": false}, nil); err != nil {
 		return result, err
 	}
-	if err = r.api.request(ctx, "POST", "/replay/playback", map[string]any{"paused": false, "speed": 1}, nil); err != nil {
+	attemptedRecording = true // Even a failed POST can have reached the game.
+	mayHaveOutput = true
+	// Real-time capture preserves match timing on the current client. Its
+	// accelerated frame-enforced mode produced shortened videos in live tests.
+	// In the tested client, FPS capture begins five seconds after startTime.
+	// Negative pre-roll initializes capture before game time zero; decoded media
+	// timestamps must still prove the exact 0..length output range.
+	const nativeStart = -5.0
+	options := map[string]any{"recording": true, "path": request.OutputPath, "codec": "webm", "startTime": nativeStart, "endTime": length, "width": request.Width, "height": request.Height, "framesPerSecond": request.FPS, "enforceFrameRate": false, "replaySpeed": 1}
+	if err = r.api.request(ctx, "POST", "/replay/recording", options, nil); err != nil {
 		return result, err
 	}
 	recordingCtx, cancelRecord := context.WithTimeout(ctx, time.Duration(length*1.5*float64(time.Second))+2*time.Minute)
@@ -339,6 +422,24 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 		if state.Recording == nil {
 			return result, errors.New("Replay API omits recording state")
 		}
+		// Current clients clear recording parameters after the encoder finishes.
+		// A reset is only a completion candidate after recording was observed;
+		// require playback at the known end, then validate the entire output below.
+		if started && !*state.Recording && state.Path == "" && state.Start == -1 && state.End == -1 && state.Current == 0 {
+			var ended playbackState
+			if err = r.api.request(recordingCtx, "GET", "/replay/playback", nil, &ended); err != nil {
+				return result, err
+			}
+			if ended.Seeking || !finitePositive(ended.Time) || !finitePositive(ended.Length) || math.Abs(ended.Length-length) > 0.5 || ended.Time < length-0.5 {
+				return result, ErrRecordingIncomplete
+			}
+			state.Path, state.Start, state.End, state.Current = request.OutputPath, nativeStart, length, length
+		}
+		// Native completion retains the path/current time but resets endTime to
+		// -1. Preserve all normal path, start, target-camera and media checks.
+		if started && !*state.Recording && state.End == -1 && state.Current >= length-0.5 {
+			state.End = length
+		}
 		if !started && !*state.Recording && state.Path == "" {
 			if time.Now().After(startDeadline) {
 				return result, ErrRecordingIncomplete
@@ -348,15 +449,63 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 			}
 			continue
 		}
-		if state.Path == "" || !samePath(state.Path, request.OutputPath) || math.Abs(state.Start) > 0.25 || math.Abs(state.End-length) > 0.5 || !finitePositive(state.End) || math.IsNaN(state.Current) || math.IsInf(state.Current, 0) {
+		if state.Path == "" || !samePath(state.Path, request.OutputPath) || math.Abs(state.Start-nativeStart) > 0.25 || math.Abs(state.End-length) > 0.5 || !finitePositive(state.End) || math.IsNaN(state.Current) || math.IsInf(state.Current, 0) {
 			return result, errors.New("Replay API recording range or output differs from request")
 		}
 		var render renderState
 		if err = r.api.request(recordingCtx, "GET", "/replay/render", nil, &render); err != nil {
 			return result, err
 		}
+		if !elevatedCamera(render) {
+			return result, fmt.Errorf("%w at %.3fs (camera view changed)", ErrCameraLock, state.Current)
+		}
 		if !locked(render, target, request.Target) {
-			return result, ErrCameraLock
+			// Starting the encoder seeks back to zero, temporarily removing game
+			// objects. Only an empty selection in the initial 250 ms may recover;
+			// a different selected player or any later lock loss remains fatal.
+			if state.Current >= 0 && state.Current <= 0.25 && render.SelectionName == "" && time.Now().Before(startDeadline) {
+				if err = r.api.request(recordingCtx, "POST", "/replay/render", map[string]any{"selectionName": selectionName, "cameraAttached": true}, nil); err != nil {
+					return result, err
+				}
+				if err = wait(recordingCtx, 50*time.Millisecond); err != nil {
+					return result, err
+				}
+				continue
+			}
+			// A dead champion can disappear as a selectable object. Keep the
+			// verified constant selection track through death only when live data
+			// explicitly confirms this same target is dead and no other object was
+			// selected. The next alive frame must again prove the camera lock.
+			var live gameData
+			if render.SelectionName != "" || render.CameraAttached == nil || !*render.CameraAttached {
+				return result, fmt.Errorf("%w at %.3fs (selection %q)", ErrCameraLock, state.Current, render.SelectionName)
+			}
+			// Render and live-data snapshots can straddle a respawn. Try one
+			// bounded re-selection of the already verified target and read it back.
+			if r.api.request(recordingCtx, "POST", "/replay/render", map[string]any{"selectionName": selectionName, "cameraAttached": true}, nil) == nil {
+				if err = wait(recordingCtx, 50*time.Millisecond); err != nil {
+					return result, err
+				}
+				if err = r.api.request(recordingCtx, "GET", "/replay/render", nil, &render); err != nil {
+					return result, err
+				}
+				if !elevatedCamera(render) {
+					return result, ErrCameraLock
+				}
+			}
+			if !locked(render, target, request.Target) {
+				if render.SelectionName != "" || render.CameraAttached == nil || !*render.CameraAttached {
+					return result, ErrCameraLock
+				}
+				if err = r.api.request(recordingCtx, "GET", "/liveclientdata/allgamedata", nil, &live); err != nil {
+					return result, err
+				}
+				_, currentTarget, targetErr := locateTarget(live.Players, request.Target)
+				if targetErr != nil || currentTarget.Team != target.Team || currentTarget.IsDead == nil || !*currentTarget.IsDead ||
+					live.Clock.Time == nil || math.IsNaN(*live.Clock.Time) || math.IsInf(*live.Clock.Time, 0) || math.Abs(*live.Clock.Time-state.Current) > 2 {
+					return result, fmt.Errorf("%w at %.3fs (empty selection without confirmed target death)", ErrCameraLock, state.Current)
+				}
+			}
 		}
 		if *state.Recording {
 			started = true
@@ -409,5 +558,12 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 		return result, err
 	}
 	return Result{Path: request.OutputPath, Target: request.Target, DurationSeconds: length, StartedAt: start, FinishedAt: time.Now().UTC()}, nil
+}
+
+// Winsock returns WSAECONNREFUSED (10061), whereas syscall.ECONNREFUSED
+// is a synthetic Go errno on Windows. Preserve all other preflight failures.
+func connectionRefused(err error) bool {
+	return errors.Is(err, syscall.ECONNREFUSED) ||
+		(runtime.GOOS == "windows" && errors.Is(err, syscall.Errno(10061)))
 }
 func samePath(a, b string) bool { return strings.EqualFold(filepath.Clean(a), filepath.Clean(b)) }
