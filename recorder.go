@@ -283,7 +283,7 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 	// Seek and pause before targeting, so no game content is lost during setup.
 	// At exact time zero current clients have not created selectable champions.
 	// Prepare within the existing 250 ms start tolerance; recording still requests
-	// startTime zero and validates the returned range and decoded video duration.
+	// a five-second native pre-roll and validates the decoded video from zero.
 	if err = r.api.request(loadCtx, "POST", "/replay/playback", map[string]any{"time": 0.1, "paused": true, "speed": 1}, nil); err != nil {
 		return result, err
 	}
@@ -392,7 +392,11 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 	mayHaveOutput = true
 	// Real-time capture preserves match timing on the current client. Its
 	// accelerated frame-enforced mode produced shortened videos in live tests.
-	options := map[string]any{"recording": true, "path": request.OutputPath, "codec": "webm", "startTime": 0, "endTime": length, "width": request.Width, "height": request.Height, "framesPerSecond": request.FPS, "enforceFrameRate": false, "replaySpeed": 1}
+	// In the tested client, FPS capture begins five seconds after startTime.
+	// Negative pre-roll initializes capture before game time zero; decoded media
+	// timestamps must still prove the exact 0..length output range.
+	const nativeStart = -5.0
+	options := map[string]any{"recording": true, "path": request.OutputPath, "codec": "webm", "startTime": nativeStart, "endTime": length, "width": request.Width, "height": request.Height, "framesPerSecond": request.FPS, "enforceFrameRate": false, "replaySpeed": 1}
 	if err = r.api.request(ctx, "POST", "/replay/recording", options, nil); err != nil {
 		return result, err
 	}
@@ -429,7 +433,7 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 			if ended.Seeking || !finitePositive(ended.Time) || !finitePositive(ended.Length) || math.Abs(ended.Length-length) > 0.5 || ended.Time < length-0.5 {
 				return result, ErrRecordingIncomplete
 			}
-			state.Path, state.Start, state.End, state.Current = request.OutputPath, 0, length, length
+			state.Path, state.Start, state.End, state.Current = request.OutputPath, nativeStart, length, length
 		}
 		// Native completion retains the path/current time but resets endTime to
 		// -1. Preserve all normal path, start, target-camera and media checks.
@@ -445,7 +449,7 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 			}
 			continue
 		}
-		if state.Path == "" || !samePath(state.Path, request.OutputPath) || math.Abs(state.Start) > 0.25 || math.Abs(state.End-length) > 0.5 || !finitePositive(state.End) || math.IsNaN(state.Current) || math.IsInf(state.Current, 0) {
+		if state.Path == "" || !samePath(state.Path, request.OutputPath) || math.Abs(state.Start-nativeStart) > 0.25 || math.Abs(state.End-length) > 0.5 || !finitePositive(state.End) || math.IsNaN(state.Current) || math.IsInf(state.Current, 0) {
 			return result, errors.New("Replay API recording range or output differs from request")
 		}
 		var render renderState

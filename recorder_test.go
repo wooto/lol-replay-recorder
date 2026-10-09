@@ -88,6 +88,18 @@ func (v fakeVerifier) verify(_ context.Context, path string, duration float64) e
 	v.f.mu.Lock()
 	defer v.f.mu.Unlock()
 	v.f.verified = true
+	if v.f.mode == "native-empty-programs" {
+		return validateProbe([]byte(`{"programs":[],"format":{"duration":"90"},"streams":[{"codec_type":"video","nb_read_frames":"2700"}],"packets":[{"pts_time":"0","duration_time":"0.033"},{"pts_time":"89.967","duration_time":"0.033"}]}`), duration)
+	}
+	if v.f.mode == "native-preroll" {
+		if v.f.start != -5 {
+			return validateProbe([]byte(`{"format":{"duration":"90"},"streams":[{"codec_type":"video","nb_read_frames":"2500"}],"packets":[{"pts_time":"0","duration_time":"0.033"},{"pts_time":"84.967","duration_time":"0.033"}]}`), duration)
+		}
+		return validateProbe([]byte(`{"format":{"duration":"90"},"streams":[{"codec_type":"video","nb_read_frames":"2700"}],"packets":[{"pts_time":"0","duration_time":"0.033"},{"pts_time":"89.967","duration_time":"0.033"}]}`), duration)
+	}
+	if v.f.mode == "native-video-short" {
+		return validateProbe([]byte(`{"format":{"duration":"90"},"streams":[{"codec_type":"video","nb_read_frames":"1350"}],"packets":[{"pts_time":"0","duration_time":"0.033"},{"pts_time":"44.967","duration_time":"0.033"}]}`), duration)
+	}
 	if v.f.mode == "camera-offset" && (!v.f.cameraProfile || !v.f.cameraTrack) {
 		return ErrCameraLock
 	}
@@ -103,7 +115,7 @@ func (v fakeVerifier) verify(_ context.Context, path string, duration float64) e
 		if v.f.enforced {
 			return validateProbe([]byte(`{"format":{"duration":"45"},"streams":[{"codec_type":"video","nb_read_frames":"1350"}]}`), duration)
 		}
-		return validateProbe([]byte(`{"format":{"duration":"90"},"streams":[{"codec_type":"video","nb_read_frames":"2700"}]}`), duration)
+		return validateProbe([]byte(`{"format":{"duration":"90"},"streams":[{"codec_type":"video","nb_read_frames":"2700"}],"packets":[{"pts_time":"0","duration_time":"0.033"},{"pts_time":"89.967","duration_time":"0.033"}]}`), duration)
 	}
 	return nil
 }
@@ -320,7 +332,7 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 			return
 		}
 		if !active && f.mode == "native-complete" {
-			encode(map[string]any{"recording": false, "path": path, "currentTime": 90, "startTime": 0, "endTime": -1})
+			encode(map[string]any{"recording": false, "path": path, "currentTime": 90, "startTime": f.start, "endTime": -1})
 			return
 		}
 		encode(map[string]any{"recording": active, "path": path, "startTime": f.start, "endTime": f.end, "currentTime": current})
@@ -357,7 +369,7 @@ func TestRecordFull(t *testing.T) {
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if !f.selected || !f.verified || !f.closed || f.start != 0 || f.end != 90 {
+	if !f.selected || !f.verified || !f.closed || f.start != -5 || f.end != 90 {
 		t.Fatalf("incomplete lifecycle: %+v", f)
 	}
 	if _, err := os.Stat(request.OutputPath + ".recorder-lock"); !errors.Is(err, os.ErrNotExist) {

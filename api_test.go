@@ -111,7 +111,7 @@ func TestProbeRejectsPartialOrUndecodableVideo(t *testing.T) {
 			t.Fatalf("accepted %s", body)
 		}
 	}
-	if err := validateProbe([]byte(`{"format":{"duration":"90.1"},"streams":[{"codec_type":"video","nb_read_frames":"5400"}]}`), 90); err != nil {
+	if err := validateProbe([]byte(`{"format":{"duration":"90.1"},"streams":[{"codec_type":"video","nb_read_frames":"5400"}],"packets":[{"pts_time":"0","duration_time":"0.017"},{"pts_time":"89.983","duration_time":"0.017"}]}`), 90); err != nil {
 		t.Fatal(err)
 	}
 }

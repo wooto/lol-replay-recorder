@@ -18,14 +18,36 @@ Observed during local testing on October 9, 2026:
 - Champion selection was unavailable at exact zero, available at 0.1 seconds,
   and could clear after encoder seeks or champion death. A constant selection
   track and bounded re-verification preserve the target through those transitions.
+- A name/attachment-only sequence could put the camera inside terrain even while
+  its identity checks passed. Short captures at combat and death verified an
+  elevated selection offset `(0, 1492.267578125, -1006.5472412109375)` with rotation
+  `(0, 56, 0)` in the API's `fps` mode. The recorder applies constant offset and
+  rotation tracks, verifies their readback before capture, and rejects drift.
+  These values reproduce the tested normal spectator angle; they do not restore
+  the original player's mouse-driven camera or establish compatibility with all maps.
 - A native completion retained the output path and final current time but reset
   `endTime` to -1. Completion must still prove target camera and decoded media.
 - Frame-enforced mode produced shortened videos despite whole-game API progress.
   An isolated 30-second real-time capture produced a 29.994666-second VP9 WebM at
   1280x720/30 FPS. Real-time mode is therefore used; whole-output validation remains
   required rather than trusting API progress.
+- FPS-mode real-time recording with `startTime=0` began at HUD 00:05 and ended
+  its video packets about five seconds before the requested duration, while
+  audio retained the full container duration. A five-second native pre-roll
+  (`startTime=-5`, echoed by the API) produced HUD 00:00 at the first frame and
+  29.898 seconds of video coverage in a 30.001333-second, 30-second test.
+  The installed schema accepts a floating-point start time without a lower bound;
+  Riot's public documentation does not promise negative pre-roll semantics.
+  This compensation is empirical and patch-dependent. Output validation checks
+  actual video packet bounds and fully decodes video, rather than trusting audio
+  length or dividing the frame count by FPS (native WebM is variable-rate).
 
 TDD regressions cover ignored API selection, death/respawn, unconfirmed or stale
 death data, same-target re-verification, encoder clock ownership, completion
 sentinels, and camera loss at completion. The live FULL acceptance status remains
 pending until a whole-game output passes decoding and duration validation.
+Camera-profile regressions also cover accepted-but-ignored settings, lost offset
+during capture, and persistent elevated tracks across encoder seeks.
+Further regressions reject short video hidden by full audio, preserve the native
+pre-roll, and accept ffprobe's empty WebM program section. Packet JSON is consumed
+one record at a time so long recordings do not accumulate all packet metadata.

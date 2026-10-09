@@ -30,6 +30,27 @@ func TestCameraOffsetLossDuringRecordingCannotReportFullSuccess(t *testing.T) {
 	}
 }
 
+func TestAudioDurationCannotHideShortVideo(t *testing.T) {
+	r, request, _ := testRecorder(t, "native-video-short")
+	if _, err := r.RecordFull(context.Background(), request); !errors.Is(err, ErrRecordingIncomplete) {
+		t.Fatalf("full audio/container duration cannot prove full video: %v", err)
+	}
+}
+
+func TestNativeCameraPrerollPreservesTimeZeroThroughVideoEnd(t *testing.T) {
+	r, request, _ := testRecorder(t, "native-preroll")
+	if _, err := r.RecordFull(context.Background(), request); err != nil {
+		t.Fatalf("native capture must retain time zero and the final video frame: %v", err)
+	}
+}
+
+func TestNativeFFprobeEmptyProgramSectionDoesNotRejectFullVideo(t *testing.T) {
+	r, request, _ := testRecorder(t, "native-empty-programs")
+	if _, err := r.RecordFull(context.Background(), request); err != nil {
+		t.Fatal(err)
+	}
+}
+
 type exportedFakeProcess struct{ fakeProcess }
 
 func (p exportedFakeProcess) PID() int     { return p.pid() }

@@ -68,11 +68,18 @@ replay, pauses and prepares at 0.1 seconds (champion objects are absent at exact
 zero on the tested client), identifies the complete Riot ID, selects through
 Replay API with verified keyboard fallback, and verifies camera attachment.
 A constant selection-name sequence reapplies the target through encoder seeks
-and respawns. Recording still requests the full range from zero. It monitors
+and respawns. An elevated camera offset and 56-degree angle are also maintained
+and verified: attachment alone can otherwise leave the camera inside terrain.
+On the tested patch, FPS capture skips the first five seconds with `startTime=0`.
+The recorder requests a five-second native pre-roll (`startTime=-5`) so the video
+can begin at game time zero. This is an observed client workaround, not a Riot
+compatibility guarantee. It monitors
 the camera and recording state, allows an empty selection during explicitly
 confirmed target death with the camera still attached while retaining the target
 track, requires observed start and completion covering
-the replay length, then checks file stability and decodes frames with ffprobe.
+the replay length, then checks file stability, decodes video frames with ffprobe,
+and verifies the first and final video packet timestamps. Audio/container length
+alone cannot prove full video coverage. Packet metadata is parsed as a stream.
 Playback starts before the encoder, following League Director's recording order.
 Capture uses real-time mode (`enforceFrameRate=false`): the current client's
 accelerated mode produced shortened output during local tests. Completion also
