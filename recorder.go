@@ -154,10 +154,11 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 	}
 	defer r.active.Store(false)
 	stage := StageValidate
+	mayHaveOutput := false
 	defer func() {
 		if err != nil {
 			partial := ""
-			if info, e := os.Stat(request.OutputPath); e == nil && info.Size() > 0 {
+			if info, e := os.Stat(request.OutputPath); mayHaveOutput && e == nil && info.Size() > 0 {
 				partial = request.OutputPath
 			}
 			err = &Error{Stage: stage, Cause: err, PartialPath: partial}
@@ -308,6 +309,7 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 	r.emit(stage, 0, length)
 	start := time.Now().UTC()
 	attemptedRecording = true // Even a failed POST can have reached the game.
+	mayHaveOutput = true
 	options := map[string]any{"recording": true, "path": request.OutputPath, "codec": "webm", "startTime": 0, "endTime": length, "width": request.Width, "height": request.Height, "framesPerSecond": request.FPS, "enforceFrameRate": true, "replaySpeed": 1}
 	if err = r.api.request(ctx, "POST", "/replay/recording", options, nil); err != nil {
 		return result, err
@@ -322,6 +324,13 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 	for {
 		if process.exited() {
 			return result, errors.New("game exited during recording")
+		}
+		var owner gameState
+		if err = r.api.request(recordingCtx, "GET", "/replay/game", nil, &owner); err != nil {
+			return result, err
+		}
+		if owner.PID != process.pid() {
+			return result, errors.New("Replay API ownership changed during recording")
 		}
 		var state recordingState
 		if err = r.api.request(recordingCtx, "GET", "/replay/recording", nil, &state); err != nil {

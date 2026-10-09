@@ -278,6 +278,10 @@ func TestOutputIsNeverOverwritten(t *testing.T) {
 	if !errors.Is(err, ErrOutputExists) {
 		t.Fatal(err)
 	}
+	var failure *Error
+	if !errors.As(err, &failure) || failure.PartialPath != "" {
+		t.Fatal("preexisting output must not be reported as this recording's partial output")
+	}
 	data, _ := os.ReadFile(request.OutputPath)
 	if string(data) != string(original) || f.launched {
 		t.Fatal("existing output modified or game launched")
