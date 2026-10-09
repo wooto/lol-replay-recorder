@@ -108,6 +108,7 @@ type recordingState struct {
 	Current   float64 `json:"currentTime"`
 }
 type player struct {
+	IsDead       *bool  `json:"isDead"`
 	NameUnique   bool   `json:"-"`
 	RiotID       string `json:"riotId"`
 	GameName     string `json:"riotIdGameName"`
@@ -131,6 +132,9 @@ func (p player) identity() string {
 
 type gameData struct {
 	Players []player `json:"allPlayers"`
+	Clock   struct {
+		Time *float64 `json:"gameTime"`
+	} `json:"gameData"`
 }
 
 func locateTarget(players []player, id RiotID) (int, player, error) {
