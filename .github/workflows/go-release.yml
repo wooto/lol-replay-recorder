@@ -1,0 +1,59 @@
+name: Go release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache: false
+      - name: Validate Go release tag
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF_NAME -notmatch '^v0\.[1-9][0-9]*\.[0-9]+(?:-[0-9A-Za-z.-]+)?$') { throw 'Expected a new Go v0.x.y tag; old npm tags are not Go releases.' }
+          $module = go list -m
+          if ($LASTEXITCODE -ne 0 -or $module -ne 'github.com/wooto/lol-replay-recorder') { throw 'Invalid module path' }
+          git merge-base --is-ancestor HEAD origin/main
+          if ($LASTEXITCODE -ne 0) { throw 'Release commit must be on main' }
+      - run: go mod verify
+      - run: go vet ./...
+      - run: go test -count=1 ./...
+      - run: go build ./...
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache: false
+      - run: go test -race -count=1 ./...
+      - run: |
+          go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
+          govulncheck ./...
+          GOOS=windows GOARCH=amd64 govulncheck ./...
+  draft:
+    needs: [verify, quality]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Create a draft for manual live-recording acceptance
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: gh release create "$RELEASE_TAG" --draft --title "$RELEASE_TAG" --generate-notes

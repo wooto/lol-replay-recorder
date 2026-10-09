@@ -1,0 +1,68 @@
+name: Go CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: go-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    name: Windows / Go ${{ matrix.go }}
+    runs-on: windows-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        go: ['1.26.x', 'stable']
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ matrix.go }}
+          cache: false
+      - name: Check formatting
+        shell: pwsh
+        run: |
+          $files = @(git ls-files '*.go')
+          $unformatted = @(& gofmt -l $files)
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ($unformatted.Count -gt 0) { $unformatted; exit 1 }
+      - name: Verify module
+        run: go mod verify
+      - name: Vet
+        run: go vet ./...
+      - name: Test
+        run: go test -count=1 '-coverprofile=coverage.out' ./...
+      - name: Build without C toolchain
+        run: go build ./...
+        env:
+          CGO_ENABLED: '0'
+      - uses: actions/upload-artifact@v5
+        with:
+          name: windows-coverage-${{ matrix.go }}
+          path: coverage.out
+          retention-days: 7
+  quality:
+    name: Race and vulnerabilities
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache: false
+      - run: go test -race -count=1 ./...
+      - name: Govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
+          govulncheck ./...
+          GOOS=windows GOARCH=amd64 govulncheck ./...

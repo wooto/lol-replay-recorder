@@ -10,13 +10,10 @@ insert_final_newline = true
 trim_trailing_whitespace = true
 charset = utf-8
 
-# 4 space indentation
-[*.{py,java,r,R}]
-indent_style = space
-indent_size = 4
+[*.go]
+indent_style = tab
 
-# 2 space indentation
-[{{*.{js,ts,mjs,json,y{a,}ml,html,cwl}}}]
+[*.{json,yml,yaml}]
 indent_style = space
 indent_size = 2
 

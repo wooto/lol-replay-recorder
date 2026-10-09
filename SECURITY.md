@@ -1,21 +1,18 @@
-# Security Policy
+# Security policy
 
-## Supported Versions
+The Go implementation is currently unreleased and awaiting real-game acceptance.
+Historical TypeScript/npm releases are retained in Git history; this migration
+does not provide maintenance or compatibility for them.
 
-Use this section to tell people about which versions of your project are
-currently being supported with security updates.
+Please report vulnerabilities using GitHub's private vulnerability reporting
+feature if it is available. Otherwise, open an issue requesting a private contact
+without publishing exploit details, credentials, or replay contents.
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 5.1.x   | :white_check_mark: |
-| 5.0.x   | :x:                |
-| 4.0.x   | :white_check_mark: |
-| < 4.0   | :x:                |
+The recorder accepts local executable and replay paths and can send keyboard input
+to its owned game window. Use trusted executables and inputs. It does not download
+executables or replays, handle Riot credentials, or expose an HTTP listener.
 
-## Reporting a Vulnerability
-
-Use this section to tell people how to report a vulnerability.
-
-Tell them where to go, how often they can expect to get an update on a
-reported vulnerability, what to expect if the vulnerability is accepted or
-declined, etc.
+The Replay API client accepts numeric loopback origins only and rejects redirects
+and proxy routing. Its default per-client certificate exception supports the local
+game endpoint. `Config.StrictTLS` requires OS trust instead. Global TLS settings
+are never changed.
