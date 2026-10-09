@@ -98,6 +98,11 @@ type playbackState struct {
 }
 type renderState struct {
 	CameraMode      string        `json:"cameraMode"`
+	CameraLockX     *bool         `json:"cameraLockX"`
+	CameraLockY     *bool         `json:"cameraLockY"`
+	CameraLockZ     *bool         `json:"cameraLockZ"`
+	CameraMoveSpeed *float64      `json:"cameraMoveSpeed"`
+	CameraLookSpeed *float64      `json:"cameraLookSpeed"`
 	SelectionOffset *cameraVector `json:"selectionOffset"`
 	CameraRotation  *cameraVector `json:"cameraRotation"`
 	CameraPosition  *cameraVector `json:"cameraPosition"`
@@ -125,6 +130,20 @@ func cameraPoseValid(state renderState) bool {
 	return finiteCameraVector(*o) && finiteCameraVector(*r) && finiteCameraVector(*p) &&
 		near(o.Y, baseCameraOffset.Y) &&
 		near(r.X, 0) && near(r.Y, 56) && near(r.Z, 0)
+}
+
+func cameraInputControlsValid(state renderState) bool {
+	if state.CameraLockX == nil || state.CameraLockY == nil || state.CameraLockZ == nil ||
+		state.CameraMoveSpeed == nil || state.CameraLookSpeed == nil {
+		return false
+	}
+	return !*state.CameraLockX && !*state.CameraLockY && !*state.CameraLockZ &&
+		finiteNumber(*state.CameraMoveSpeed) && *state.CameraMoveSpeed == 0 &&
+		finiteNumber(*state.CameraLookSpeed) && *state.CameraLookSpeed == 0
+}
+
+func finiteNumber(value float64) bool {
+	return !math.IsNaN(value) && !math.IsInf(value, 0)
 }
 
 func cameraOffsetWithinRange(state renderState) bool {

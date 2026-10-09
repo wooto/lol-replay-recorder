@@ -111,7 +111,7 @@ func cameraOffsetMatches(actual, expected cameraVector) bool {
 
 func cameraOffsetAckError(gameTime float64, actual *cameraVector, expected cameraVector) error {
 	if actual == nil {
-		return fmt.Errorf("%w at %.3fs (camera follow offset readback unavailable, expected %+v)", ErrCameraLock, gameTime, expected)
+		return fmt.Errorf("%w at %.3fs (offset acknowledgement readback unavailable, expected %+v)", ErrCameraLock, gameTime, expected)
 	}
-	return fmt.Errorf("%w at %.3fs (camera follow offset readback %+v, expected %+v)", ErrCameraLock, gameTime, *actual, expected)
+	return fmt.Errorf("%w at %.3fs (offset acknowledgement readback %+v, expected %+v)", ErrCameraLock, gameTime, *actual, expected)
 }

@@ -134,8 +134,8 @@ func (r *Recorder) waitForCameraOffset(ctx context.Context, target player, id Ri
 			}
 			return latest, false, err
 		}
-		if !cameraPoseValid(latest) || !cameraOffsetWithinRange(latest) {
-			return latest, false, fmt.Errorf("%w at %.3fs (camera profile changed while awaiting offset readback %+v, expected %+v)", ErrCameraLock, gameTime, latest.SelectionOffset, expected)
+		if !cameraPoseValid(latest) || !cameraOffsetWithinRange(latest) || !cameraInputControlsValid(latest) {
+			return latest, false, fmt.Errorf("%w at %.3fs (camera profile or FPS input controls changed while awaiting offset readback %+v, expected %+v)", ErrCameraLock, gameTime, latest.SelectionOffset, expected)
 		}
 		if latest.SelectionName == "" && latest.CameraAttached != nil && *latest.CameraAttached {
 			return latest, true, nil
@@ -387,6 +387,8 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 	rotation := baseCameraRotation
 	if err = r.api.request(loadCtx, "POST", "/replay/render", map[string]any{
 		"cameraMode": "fps", "selectionOffset": offset, "cameraRotation": rotation,
+		"cameraLockX": false, "cameraLockY": false, "cameraLockZ": false,
+		"cameraMoveSpeed": 0, "cameraLookSpeed": 0,
 	}, nil); err != nil {
 		return result, err
 	}
@@ -409,7 +411,7 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 	if err = r.api.request(loadCtx, "GET", "/replay/render", nil, &prepared); err != nil {
 		return result, err
 	}
-	if !elevatedCamera(prepared) || !locked(prepared, target, request.Target) || !cameraOffsetMatches(*prepared.SelectionOffset, baseCameraOffset) {
+	if !elevatedCamera(prepared) || !cameraInputControlsValid(prepared) || !locked(prepared, target, request.Target) || !cameraOffsetMatches(*prepared.SelectionOffset, baseCameraOffset) {
 		return result, ErrCameraLock
 	}
 	follower := &cameraFollower{}
@@ -504,8 +506,11 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 		if !cameraPoseValid(render) {
 			return result, fmt.Errorf("%w at %.3fs (camera view changed)", ErrCameraLock, state.Current)
 		}
+		if !cameraInputControlsValid(render) {
+			return result, fmt.Errorf("%w at %.3fs (FPS camera input controls changed)", ErrCameraLock, state.Current)
+		}
 		if selectionLocked && !lifecycleReset && !cameraOffsetMatches(*render.SelectionOffset, expectedCameraOffset) {
-			return result, fmt.Errorf("%w at %.3fs (camera follow offset readback %+v, expected %+v)", ErrCameraLock, state.Current, *render.SelectionOffset, expectedCameraOffset)
+			return result, fmt.Errorf("%w at %.3fs (between-update camera follow offset readback %+v, expected %+v)", ErrCameraLock, state.Current, *render.SelectionOffset, expectedCameraOffset)
 		}
 		if !cameraOffsetWithinRange(render) && !(lifecycleReset && selectionLocked) {
 			return result, fmt.Errorf("%w at %.3fs (camera view changed)", ErrCameraLock, state.Current)
@@ -543,7 +548,7 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 				}
 				lifecycleReset = follower.requiresLifecycleReset(state.Current)
 				selectionLocked = locked(render, target, request.Target)
-				if !cameraPoseValid(render) || (!cameraOffsetWithinRange(render) && !(lifecycleReset && selectionLocked)) {
+				if !cameraPoseValid(render) || !cameraInputControlsValid(render) || (!cameraOffsetWithinRange(render) && !(lifecycleReset && selectionLocked)) {
 					return result, ErrCameraLock
 				}
 			}
@@ -562,36 +567,58 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 			}
 		}
 		if locked(render, target, request.Target) {
-			lifecycleReset = follower.requiresLifecycleReset(state.Current)
-			if !lifecycleReset && !cameraOffsetMatches(*render.SelectionOffset, expectedCameraOffset) {
-				return result, fmt.Errorf("%w at %.3fs (camera follow offset readback %+v, expected %+v)", ErrCameraLock, state.Current, *render.SelectionOffset, expectedCameraOffset)
-			}
-			offset, ok := follower.follow(render, state.Current, time.Now())
-			if !ok {
-				return result, ErrCameraLock
-			}
-			if !cameraOffsetMatches(offset, *render.SelectionOffset) {
-				if err = r.api.request(recordingCtx, "POST", "/replay/render", map[string]any{"selectionOffset": offset}, nil); err != nil {
-					return result, fmt.Errorf("update camera follow offset: %w", err)
+			if *state.Recording {
+				lifecycleReset = follower.requiresLifecycleReset(state.Current)
+				if !lifecycleReset && !cameraOffsetMatches(*render.SelectionOffset, expectedCameraOffset) {
+					return result, fmt.Errorf("%w at %.3fs (between-update camera follow offset readback %+v, expected %+v)", ErrCameraLock, state.Current, *render.SelectionOffset, expectedCameraOffset)
 				}
-				var selectionLost bool
-				var acknowledged renderState
-				acknowledged, selectionLost, err = r.waitForCameraOffset(recordingCtx, target, request.Target, offset, state.Current)
-				if err != nil {
-					return result, err
+				offset, ok := follower.follow(render, state.Current, time.Now())
+				if !ok {
+					return result, ErrCameraLock
 				}
-				if selectionLost {
-					follower.suspend()
-					if err = wait(recordingCtx, cameraPollInterval(r.config.PollInterval)); err != nil {
-						return result, err
+				if !cameraOffsetMatches(offset, *render.SelectionOffset) {
+					const cameraTransitionDuration = 0.1
+					if length-state.Current >= cameraTransitionDuration {
+						endpointTime := state.Current + cameraTransitionDuration
+						sequence := map[string]any{
+							"selectionName": []map[string]any{
+								{"time": 0, "value": selectionName, "blend": "snap"},
+								{"time": length, "value": selectionName, "blend": "snap"},
+							},
+							"selectionOffset": []map[string]any{
+								{"time": state.Current, "value": *render.SelectionOffset, "blend": "linear"},
+								{"time": endpointTime, "value": offset, "blend": "linear"},
+							},
+							"cameraRotation": []map[string]any{
+								{"time": 0, "value": baseCameraRotation, "blend": "snap"},
+								{"time": length, "value": baseCameraRotation, "blend": "snap"},
+							},
+						}
+						if err = r.api.request(recordingCtx, "POST", "/replay/sequence", sequence, nil); err != nil {
+							return result, fmt.Errorf("update camera follow sequence: %w", err)
+						}
+						var selectionLost bool
+						_, selectionLost, err = r.waitForCameraOffset(recordingCtx, target, request.Target, offset, state.Current)
+						if err != nil {
+							return result, err
+						}
+						if selectionLost {
+							follower.suspend()
+							if err = wait(recordingCtx, cameraPollInterval(r.config.PollInterval)); err != nil {
+								return result, err
+							}
+							continue
+						}
+						expectedCameraOffset = offset
+					} else {
+						// Hold the last acknowledged position near the replay end.
+						expectedCameraOffset = *render.SelectionOffset
 					}
-					continue
+				} else {
+					// Keep readback as the acknowledgement when smoothing does not move
+					// far enough to send a new sequence update.
+					expectedCameraOffset = *render.SelectionOffset
 				}
-				expectedCameraOffset = *acknowledged.SelectionOffset
-			} else {
-				// Keep readback as the acknowledgement when smoothing does not move
-				// far enough to send a new command.
-				expectedCameraOffset = *render.SelectionOffset
 			}
 		}
 		if *state.Recording {

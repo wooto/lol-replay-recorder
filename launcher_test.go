@@ -35,16 +35,32 @@ func TestFullRecordingNaturallyFollowsMovingTarget(t *testing.T) {
 	if !lagged {
 		t.Fatal("camera stayed rigidly attached instead of easing behind the moving target")
 	}
-	if !f.cameraTrack || f.cameraOffsetTrack {
-		t.Fatal("camera sequence must keep selection and rotation without pinning a constant offset")
+	if !f.cameraTrack || !f.cameraOffsetTrack {
+		t.Fatal("camera sequence must keep selection and rotation while updating its dynamic offset track")
 	}
 }
 
-func TestIgnoredCameraFollowOffsetCannotReportFullSuccess(t *testing.T) {
-	r, request, _ := testRecorder(t, "camera-follow-ignored-offset")
+func TestCameraFollowSequenceWorksWhenRenderOffsetUpdatesAreIgnored(t *testing.T) {
+	r, request, f := testRecorder(t, "camera-follow-ignored-offset")
+	r.config.PollInterval = 50 * time.Millisecond
+	if _, err := r.RecordFull(context.Background(), request); err != nil {
+		t.Fatalf("dynamic camera follow sequence must work when render offset POSTs are ignored: %v", err)
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if !f.cameraTrack || !f.cameraOffsetTrack || len(f.followOffsets) == 0 {
+		t.Fatal("camera follow did not update the selection-offset sequence while preserving target and rotation tracks")
+	}
+}
+
+func TestIgnoredCameraFollowSequenceCannotReportFullSuccess(t *testing.T) {
+	r, request, f := testRecorder(t, "camera-follow-sequence-ignored")
 	r.config.PollInterval = 50 * time.Millisecond
 	if _, err := r.RecordFull(context.Background(), request); !errors.Is(err, ErrCameraLock) {
-		t.Fatalf("ignored camera follow updates must fail the recording: %v", err)
+		t.Fatalf("ignored camera follow sequence must fail readback verification: %v", err)
+	}
+	if !f.closed {
+		t.Fatal("game was left running after ignored camera follow sequence")
 	}
 }
 
@@ -58,6 +74,20 @@ func TestDelayedCameraFollowOffsetEchoIsAcknowledged(t *testing.T) {
 	defer f.mu.Unlock()
 	if len(f.followOffsets) == 0 {
 		t.Fatal("delayed camera follow update was never applied")
+	}
+}
+
+func TestDeathDuringCameraOffsetAcknowledgementUsesBoundedRecovery(t *testing.T) {
+	r, request, f := testRecorder(t, "camera-follow-death-ack")
+	r.config.PollInterval = 50 * time.Millisecond
+	if _, err := r.RecordFull(context.Background(), request); err != nil {
+		t.Fatalf("confirmed death during camera offset acknowledgement must recover: %v", err)
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if !f.deathAckPostIgnored || !f.deathAckLockedRead || !f.deathAckStaleOffset || f.deathAckRenderReads != 2 || !f.deathAckEmptySeen || !f.deathAckDeathSeen || f.deathAckDeathClock != 60 || !f.deathAckReacquired || !f.verified {
+		t.Fatalf("death during offset acknowledgement did not use the bounded death/reacquisition path: ignoredPOST=%t lockedRead=%t staleOffset=%t reads=%d empty=%t death=%t liveClock=%v reacquired=%t verified=%t",
+			f.deathAckPostIgnored, f.deathAckLockedRead, f.deathAckStaleOffset, f.deathAckRenderReads, f.deathAckEmptySeen, f.deathAckDeathSeen, f.deathAckDeathClock, f.deathAckReacquired, f.verified)
 	}
 }
 
@@ -92,6 +122,23 @@ func TestStaleBoundedCameraOffsetCannotStartRecording(t *testing.T) {
 	defer f.mu.Unlock()
 	if f.path != "" || !f.closed {
 		t.Fatal("stale camera offset started recording or left the game running")
+	}
+}
+
+func TestIgnoredCameraInputControlsCannotStartRecording(t *testing.T) {
+	r, request, f := testRecorder(t, "camera-input-controls-ignored")
+	if _, err := r.RecordFull(context.Background(), request); !errors.Is(err, ErrCameraLock) {
+		t.Fatalf("unverified unlocked FPS input controls must fail before recording: %v", err)
+	}
+	if f.path != "" || !f.closed {
+		t.Fatal("recording started or the owned game was left running with unverified FPS input controls")
+	}
+}
+
+func TestCameraInputControlDriftDuringRecordingCannotReportFullSuccess(t *testing.T) {
+	r, request, _ := testRecorder(t, "camera-input-controls-drift")
+	if _, err := r.RecordFull(context.Background(), request); !errors.Is(err, ErrCameraLock) {
+		t.Fatalf("FPS input-control drift during capture must fail: %v", err)
 	}
 }
 
