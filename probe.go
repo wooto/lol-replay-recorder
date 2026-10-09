@@ -15,6 +15,17 @@ import (
 
 type probeVerifier struct{ executable string }
 
+// exec writes stderr on one goroutine; it is inspected only after Wait joins it.
+// Keep only its presence because a damaged long file can emit millions of errors.
+type probeErrorOutput struct{ seen bool }
+
+func (w *probeErrorOutput) Write(data []byte) (int, error) {
+	if len(data) > 0 {
+		w.seen = true
+	}
+	return len(data), nil
+}
+
 func (v probeVerifier) path() string {
 	if v.executable != "" {
 		return v.executable
@@ -29,7 +40,7 @@ func (v probeVerifier) ready() error {
 }
 func (v probeVerifier) verify(ctx context.Context, path string, length float64) error {
 	command := exec.CommandContext(ctx, v.path(), "-v", "error", "-select_streams", "v:0", "-count_frames", "-show_packets", "-show_entries", "format=duration:stream=codec_type,nb_read_frames:packet=pts_time,duration_time", "-of", "json", path)
-	var stderr bytes.Buffer
+	var stderr probeErrorOutput
 	command.Stderr = &stderr
 	stdout, err := command.StdoutPipe()
 	if err != nil {
@@ -56,7 +67,7 @@ func (v probeVerifier) verify(ctx context.Context, path string, length float64) 
 		if errors.Is(killErr, os.ErrProcessDone) && waitErr != nil {
 			return fmt.Errorf("ffprobe validation failed: %w", waitErr)
 		}
-		if stderr.Len() > 0 {
+		if stderr.seen {
 			return errors.New("ffprobe reported decoding errors")
 		}
 		return probeErr
@@ -67,7 +78,7 @@ func (v probeVerifier) verify(ctx context.Context, path string, length float64) 
 		}
 		return fmt.Errorf("ffprobe validation failed: %w", err)
 	}
-	if stderr.Len() > 0 {
+	if stderr.seen {
 		return errors.New("ffprobe reported decoding errors")
 	}
 	return nil
