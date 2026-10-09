@@ -1,13 +1,11 @@
-### Python ###
-# Byte-compiled / optimized / DLL files
-__pycache__/
-*.py[cod]
-*$py.class
-
 .DS_Store
-
-.yarn
-node_modules
-dist
 .idea
 .vscode
+
+/.scratch/
+/bin/
+*.exe
+*.out
+*.rofl
+*.webm
+*.recorder-lock
