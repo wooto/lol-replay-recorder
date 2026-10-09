@@ -45,3 +45,17 @@ The existing FPS camera/recording behavior is unchanged.
 Riot documents double presses of `1–5` / `Q,W,E,R,T` for champion locking in its
 [Replays FAQ](https://support.riotgames.com/en-us/league-of-legends/gameplay/replays-faq-pro-tips).
 Settings verification and actual target-camera verification are separate checks.
+
+## Target slot from the champion roster
+
+The recorder already uses `allPlayers` team membership and original order within
+each team to locate the full target Riot ID. ORDER slots map to configured keys
+0–4 (default `1–5`), CHAOS slots to keys 5–9 (default `Q,W,E,R,T`). It counts each
+team separately, so interleaved blue/red arrays do not shift the player's slot.
+It does not sort by champion or player name, or identify players by champion
+alone. RecordFull regression tests cover both teams and interleaved rosters.
+
+In the currently opened replay, target `헬로지토#HELLO` played Kayle and appeared
+first in CHAOS, yielding default key `Q`. This is a roster-to-key inference,
+not proof that the game accepted the key or that a remapped key remains `Q`.
+Native camera/target readback must still establish successful focusing.

@@ -38,6 +38,8 @@ func TestConnectionRefusedFromClosedLocalListener(t *testing.T) {
 }
 
 type fixture struct {
+	roster                     []map[string]any
+	expectedSelectionKey       uint16
 	cameraProfile              bool
 	cameraLockX                bool
 	cameraLockY                bool
@@ -98,7 +100,11 @@ func (d fakeDesktop) launch(context.Context, Config, string) (replayProcess, err
 func (d fakeDesktop) selectPlayer(_ context.Context, _ int, key uint16) error {
 	d.f.mu.Lock()
 	defer d.f.mu.Unlock()
-	if key != '2' {
+	expected := d.f.expectedSelectionKey
+	if expected == 0 {
+		expected = '2'
+	}
+	if key != expected {
 		return fmt.Errorf("wrong player key %d", key)
 	}
 	d.f.selected = true
@@ -180,6 +186,10 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 		}
 		encode(map[string]any{"length": length, "time": current, "paused": true, "seeking": false})
 	case "/liveclientdata/allgamedata":
+		if f.roster != nil {
+			encode(map[string]any{"gameData": map[string]any{"gameTime": float64(f.ticks) * 30}, "allPlayers": f.roster})
+			return
+		}
 		var dead any = (f.mode == "death-respawn" || f.mode == "death-unattached" || f.mode == "death-other-player" || f.mode == "death-stale-data" || f.mode == "camera-follow-death-ack") && f.ticks == 2
 		if f.mode == "death-unknown" {
 			dead = nil
@@ -538,6 +548,40 @@ func TestRecordFull(t *testing.T) {
 	}
 	if _, err := os.Stat(request.OutputPath + ".recorder-lock"); !errors.Is(err, os.ErrNotExist) {
 		t.Fatal("output reservation leaked")
+	}
+}
+
+func TestRecordFullSelectsPlayerByOrderWithinTeam(t *testing.T) {
+	for _, scenario := range []struct {
+		name   string
+		teams  []string
+		target int
+		key    uint16
+	}{
+		{"blue-first-after-red", []string{"CHAOS", "ORDER", "CHAOS", "ORDER"}, 1, '1'},
+		{"red-first-after-blue", []string{"ORDER", "CHAOS", "ORDER"}, 1, 'Q'},
+		{"red-second-interleaved", []string{"CHAOS", "ORDER", "CHAOS", "ORDER"}, 2, 'W'},
+		{"blue-third-interleaved", []string{"ORDER", "CHAOS", "ORDER", "CHAOS", "ORDER"}, 4, '3'},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			r, request, f := testRecorder(t, "ignored-api")
+			f.expectedSelectionKey = scenario.key
+			for i, team := range scenario.teams {
+				id := fmt.Sprintf("Other%d#KR1", i)
+				if i == scenario.target {
+					id = "Player#KR1"
+				}
+				// Duplicate champion names must not replace Riot-ID identification.
+				f.roster = append(f.roster, map[string]any{"riotId": id, "summonerName": id, "team": team, "championName": "Kayle", "isDead": false})
+			}
+			result, err := r.RecordFull(context.Background(), request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.Target != request.Target || !f.selected || !f.verified {
+				t.Fatal("incorrect target or incomplete recording")
+			}
+		})
 	}
 }
 
