@@ -69,7 +69,15 @@ func (a *replayAPI) request(ctx context.Context, method, path string, body, out 
 		_, err = io.Copy(io.Discard, io.LimitReader(response.Body, 1<<20))
 		return err
 	}
-	decoder := json.NewDecoder(io.LimitReader(response.Body, 4<<20))
+	const maxJSONBytes = 4 << 20
+	data, err := io.ReadAll(io.LimitReader(response.Body, maxJSONBytes+1))
+	if err != nil {
+		return fmt.Errorf("read %s: %w", path, err)
+	}
+	if len(data) > maxJSONBytes {
+		return errors.New("Replay API response exceeds size limit")
+	}
+	decoder := json.NewDecoder(bytes.NewReader(data))
 	if err := decoder.Decode(out); err != nil {
 		return fmt.Errorf("decode %s: %w", path, err)
 	}

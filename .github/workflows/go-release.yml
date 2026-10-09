@@ -22,12 +22,18 @@ jobs:
       - name: Validate Go release tag
         shell: pwsh
         run: |
-          if ($env:GITHUB_REF_NAME -notmatch '^v0\.[1-9][0-9]*\.[0-9]+(?:-[0-9A-Za-z.-]+)?$') { throw 'Expected a new Go v0.x.y tag; old npm tags are not Go releases.' }
+          if ($env:GITHUB_REF_NAME -notmatch '^v0\.[1-9][0-9]*\.[0-9]+(?:-(?:alpha|beta|rc)\.[1-9][0-9]*)?$') { throw 'Expected a Go v0.x.y or numbered alpha/beta/rc tag; old npm tags are not Go releases.' }
           $module = go list -m
           if ($LASTEXITCODE -ne 0 -or $module -ne 'github.com/wooto/lol-replay-recorder') { throw 'Invalid module path' }
           git merge-base --is-ancestor HEAD origin/main
           if ($LASTEXITCODE -ne 0) { throw 'Release commit must be on main' }
       - run: go mod verify
+      - name: Check formatting
+        shell: pwsh
+        run: |
+          $unformatted = @(& gofmt -l @(git ls-files '*.go'))
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ($unformatted.Count -gt 0) { $unformatted; exit 1 }
       - run: go vet ./...
       - run: go test -count=1 ./...
       - run: go build ./...
@@ -45,15 +51,30 @@ jobs:
           go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
           govulncheck ./...
           GOOS=windows GOARCH=amd64 govulncheck ./...
-  draft:
+  publish:
     needs: [verify, quality]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - name: Create a draft for manual live-recording acceptance
+      - uses: actions/checkout@v6
+      - name: Publish experimental prereleases; keep stable versions as drafts
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ github.ref_name }}
-        run: gh release create "$RELEASE_TAG" --draft --title "$RELEASE_TAG" --generate-notes
+        shell: bash
+        run: |
+          options=(--title "$RELEASE_TAG" --verify-tag)
+          if [[ "$RELEASE_TAG" == *-* ]]; then
+            options+=(--prerelease --latest=false)
+          else
+            options+=(--draft)
+          fi
+          notes="docs/releases/$RELEASE_TAG.md"
+          if [[ -f "$notes" ]]; then
+            options+=(--notes-file "$notes")
+          else
+            options+=(--generate-notes)
+          fi
+          gh release create "$RELEASE_TAG" "${options[@]}"

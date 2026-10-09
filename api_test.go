@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -81,6 +82,22 @@ func TestInvalidResponsesAreErrors(t *testing.T) {
 				t.Fatal("invalid JSON accepted")
 			}
 		})
+	}
+}
+
+func TestOversizedWhitespaceCannotHideTrailingResponseData(t *testing.T) {
+	body := `{"processID":1}` + strings.Repeat(" ", 4<<20) + `{"processID":2}`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(body))
+	}))
+	defer server.Close()
+	api, err := newAPI(server.URL, time.Second, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer api.close()
+	if err := api.request(context.Background(), "GET", "/replay/game", nil, new(gameState)); err == nil {
+		t.Fatal("oversized response accepted after reader truncation")
 	}
 }
 func TestProbeRejectsPartialOrUndecodableVideo(t *testing.T) {
