@@ -8,8 +8,10 @@ slot order as `Config.SelectionKeys`.
 The adapter implements `HotkeySettings`:
 
 - `Read(ctx)` returns ten effective Windows virtual-key codes, or an error when
-  the current client's spectator bindings cannot be determined. All-zero
-  bindings are rejected as unknown. A successful settings request without a
+  the current client's spectator bindings cannot be determined. Missing,
+  duplicate, or out-of-range slot bindings are rejected before any change.
+  Configured desired bindings must also be distinct and nonzero.
+  A successful settings request without a
   spectator group is insufficient; do not substitute guessed defaults.
 - `Backup(ctx)` durably backs up the original settings before any mutation.
   A backup error prevents `Apply` and replay launch.

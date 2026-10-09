@@ -599,6 +599,16 @@ func TestRecordFullDoesNotConfigureUnknownHotkeys(t *testing.T) {
 	}
 }
 
+func TestRecordFullDoesNotConfigureConflictingSlotKeys(t *testing.T) {
+	r, request, f := testRecorder(t, "")
+	h := &fixtureHotkeys{keys: [10]uint16{'2', '2', '3', '4', '5', 'Q', 'W', 'E', 'R', 'T'}}
+	r.config.Hotkeys, r.config.ConfigureHotkeys = h, true
+	_, err := r.RecordFull(context.Background(), request)
+	if !errors.Is(err, ErrHotkeySettings) || f.launched || fmt.Sprint(h.events) != "[read]" {
+		t.Fatalf("conflicting slots must stop: err=%v events=%v launched=%v", err, h.events, f.launched)
+	}
+}
+
 func TestRecordFullHotkeyApplyFailuresStopBeforeLaunch(t *testing.T) {
 	for _, scenario := range []string{"backup-failed", "apply-ignored", "backup-cancelled"} {
 		t.Run(scenario, func(t *testing.T) {
