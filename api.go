@@ -97,9 +97,24 @@ type playbackState struct {
 	Seeking bool    `json:"seeking"`
 }
 type renderState struct {
-	SelectionName  string `json:"selectionName"`
-	CameraAttached *bool  `json:"cameraAttached"`
+	CameraMode      string        `json:"cameraMode"`
+	SelectionOffset *cameraVector `json:"selectionOffset"`
+	CameraRotation  *cameraVector `json:"cameraRotation"`
+	SelectionName   string        `json:"selectionName"`
+	CameraAttached  *bool         `json:"cameraAttached"`
 }
+
+type cameraVector struct{ X, Y, Z float64 }
+
+func elevatedCamera(state renderState) bool {
+	if state.CameraMode != "fps" || state.SelectionOffset == nil || state.CameraRotation == nil {
+		return false
+	}
+	near := func(a, b float64) bool { return math.Abs(a-b) <= 0.5 }
+	o, r := state.SelectionOffset, state.CameraRotation
+	return near(o.X, 0) && near(o.Y, 1492.267578125) && near(o.Z, -1006.5472412109375) && near(r.X, 0) && near(r.Y, 56) && near(r.Z, 0)
+}
+
 type recordingState struct {
 	Recording *bool   `json:"recording"`
 	Path      string  `json:"path"`

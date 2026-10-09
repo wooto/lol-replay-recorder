@@ -340,6 +340,16 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 	if !verified {
 		return result, ErrCameraLock
 	}
+	// A selection track places the camera at the object's origin unless an
+	// offset is supplied. Use the client's normal 56-degree elevated view;
+	// name/attachment alone can otherwise report success from inside terrain.
+	offset := map[string]float64{"x": 0, "y": 1492.267578125, "z": -1006.5472412109375}
+	rotation := map[string]float64{"x": 0, "y": 56, "z": 0}
+	if err = r.api.request(loadCtx, "POST", "/replay/render", map[string]any{
+		"cameraMode": "fps", "selectionOffset": offset, "cameraRotation": rotation,
+	}, nil); err != nil {
+		return result, err
+	}
 	// Apply a constant selection track so encoder seeks reselect the same player
 	// on every render frame, rather than losing the object reference at time zero.
 	if err = r.api.request(loadCtx, "POST", "/replay/sequence", map[string]any{
@@ -347,8 +357,23 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 			{"time": 0, "value": selectionName, "blend": "snap"},
 			{"time": length, "value": selectionName, "blend": "snap"},
 		},
+		"selectionOffset": []map[string]any{
+			{"time": 0, "value": offset, "blend": "snap"},
+			{"time": length, "value": offset, "blend": "snap"},
+		},
+		"cameraRotation": []map[string]any{
+			{"time": 0, "value": rotation, "blend": "snap"},
+			{"time": length, "value": rotation, "blend": "snap"},
+		},
 	}, nil); err != nil {
 		return result, err
+	}
+	var prepared renderState
+	if err = r.api.request(loadCtx, "GET", "/replay/render", nil, &prepared); err != nil {
+		return result, err
+	}
+	if !elevatedCamera(prepared) {
+		return result, ErrCameraLock
 	}
 	if _, e = os.Lstat(request.OutputPath); e == nil {
 		return result, ErrOutputExists
@@ -427,6 +452,9 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 		if err = r.api.request(recordingCtx, "GET", "/replay/render", nil, &render); err != nil {
 			return result, err
 		}
+		if !elevatedCamera(render) {
+			return result, fmt.Errorf("%w at %.3fs (camera view changed)", ErrCameraLock, state.Current)
+		}
 		if !locked(render, target, request.Target) {
 			// Starting the encoder seeks back to zero, temporarily removing game
 			// objects. Only an empty selection in the initial 250 ms may recover;
@@ -456,6 +484,9 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 				}
 				if err = r.api.request(recordingCtx, "GET", "/replay/render", nil, &render); err != nil {
 					return result, err
+				}
+				if !elevatedCamera(render) {
+					return result, ErrCameraLock
 				}
 			}
 			if !locked(render, target, request.Target) {

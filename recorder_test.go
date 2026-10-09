@@ -38,9 +38,11 @@ func TestConnectionRefusedFromClosedLocalListener(t *testing.T) {
 }
 
 type fixture struct {
-	enforced bool
-	restored bool
-	sequence []struct {
+	cameraProfile bool
+	cameraTrack   bool
+	enforced      bool
+	restored      bool
+	sequence      []struct {
 		Time  float64 `json:"time"`
 		Value string  `json:"value"`
 	}
@@ -86,6 +88,9 @@ func (v fakeVerifier) verify(_ context.Context, path string, duration float64) e
 	v.f.mu.Lock()
 	defer v.f.mu.Unlock()
 	v.f.verified = true
+	if v.f.mode == "camera-offset" && (!v.f.cameraProfile || !v.f.cameraTrack) {
+		return ErrCameraLock
+	}
 	if v.f.mode == "corrupt" {
 		return ErrRecordingIncomplete
 	}
@@ -153,6 +158,22 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 		}})
 	case "/replay/render":
 		if request.Method == "POST" {
+			var raw map[string]json.RawMessage
+			if err := json.NewDecoder(request.Body).Decode(&raw); err != nil {
+				http.Error(w, "invalid render", 400)
+				return
+			}
+			if raw["selectionOffset"] != nil {
+				var offset struct{ X, Y, Z float64 }
+				var rotation struct{ X, Y, Z float64 }
+				var mode string
+				json.Unmarshal(raw["selectionOffset"], &offset)
+				json.Unmarshal(raw["cameraRotation"], &rotation)
+				json.Unmarshal(raw["cameraMode"], &mode)
+				f.cameraProfile = mode == "fps" && offset.X == 0 && offset.Y > 1400 && offset.Y < 1600 && offset.Z < -900 && offset.Z > -1100 && rotation.Y == 56
+				encode(map[string]any{})
+				return
+			}
 			if f.mode == "ignored-api" {
 				encode(map[string]any{})
 				return
@@ -161,7 +182,8 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 				var body struct {
 					Name string `json:"selectionName"`
 				}
-				if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+				data, _ := json.Marshal(raw)
+				if err := json.Unmarshal(data, &body); err != nil {
 					t := "invalid selection"
 					http.Error(w, t, 400)
 					return
@@ -198,13 +220,29 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 				name = ""
 			}
 		}
-		encode(map[string]any{"selectionName": name, "cameraAttached": attached})
+		camera := map[string]any{"selectionName": name, "cameraAttached": attached,
+			"cameraMode": "fps", "selectionOffset": map[string]any{"x": 0, "y": 1492.267578125, "z": -1006.5472412109375}, "cameraRotation": map[string]any{"x": 0, "y": 56, "z": 0}}
+		if f.mode == "camera-profile-ignored" {
+			delete(camera, "selectionOffset")
+		}
+		if f.mode == "camera-profile-drift" && f.ticks >= 2 {
+			camera["selectionOffset"] = map[string]any{"x": 0, "y": 0, "z": 0}
+		}
+		encode(camera)
 	case "/replay/sequence":
 		if f.mode == "sequence-error" {
 			http.Error(w, "sequence unavailable", 500)
 			return
 		}
 		var body struct {
+			Offset []struct {
+				Time  float64
+				Value struct{ X, Y, Z float64 }
+			} `json:"selectionOffset"`
+			Rotation []struct {
+				Time  float64
+				Value struct{ X, Y, Z float64 }
+			} `json:"cameraRotation"`
 			Selection []struct {
 				Time  float64 `json:"time"`
 				Value string  `json:"value"`
@@ -215,6 +253,7 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 			return
 		}
 		f.sequence = body.Selection
+		f.cameraTrack = len(body.Offset) == 2 && body.Offset[0].Time == 0 && body.Offset[1].Time == 90 && body.Offset[0].Value.Y > 1400 && body.Offset[1].Value.Y > 1400 && body.Offset[0].Value.Z < -900 && body.Offset[1].Value.Z < -900 && len(body.Rotation) == 2 && body.Rotation[0].Value.Y == 56 && body.Rotation[1].Value.Y == 56
 		encode(map[string]any{})
 	case "/replay/recording":
 		if request.Method == "POST" {

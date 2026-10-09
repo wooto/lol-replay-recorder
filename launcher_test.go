@@ -6,6 +6,30 @@ import (
 	"testing"
 )
 
+func TestFullRecordingKeepsCameraAboveTargetAcrossEncoderSeeks(t *testing.T) {
+	r, request, _ := testRecorder(t, "camera-offset")
+	if _, err := r.RecordFull(context.Background(), request); err != nil {
+		t.Fatalf("selected player must retain an elevated camera and normal angle through the full recording: %v", err)
+	}
+}
+
+func TestAcceptedButIgnoredCameraProfileDoesNotStartRecording(t *testing.T) {
+	r, request, f := testRecorder(t, "camera-profile-ignored")
+	if _, err := r.RecordFull(context.Background(), request); !errors.Is(err, ErrCameraLock) {
+		t.Fatalf("unverified camera position must fail: %v", err)
+	}
+	if f.path != "" || !f.closed {
+		t.Fatal("unverified camera started recording or left game running")
+	}
+}
+
+func TestCameraOffsetLossDuringRecordingCannotReportFullSuccess(t *testing.T) {
+	r, request, _ := testRecorder(t, "camera-profile-drift")
+	if _, err := r.RecordFull(context.Background(), request); !errors.Is(err, ErrCameraLock) {
+		t.Fatalf("camera inside terrain must not report FULL: %v", err)
+	}
+}
+
 type exportedFakeProcess struct{ fakeProcess }
 
 func (p exportedFakeProcess) PID() int     { return p.pid() }
