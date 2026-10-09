@@ -98,21 +98,56 @@ type playbackState struct {
 }
 type renderState struct {
 	CameraMode      string        `json:"cameraMode"`
+	CameraLockX     *bool         `json:"cameraLockX"`
+	CameraLockY     *bool         `json:"cameraLockY"`
+	CameraLockZ     *bool         `json:"cameraLockZ"`
+	CameraMoveSpeed *float64      `json:"cameraMoveSpeed"`
+	CameraLookSpeed *float64      `json:"cameraLookSpeed"`
 	SelectionOffset *cameraVector `json:"selectionOffset"`
 	CameraRotation  *cameraVector `json:"cameraRotation"`
+	CameraPosition  *cameraVector `json:"cameraPosition"`
 	SelectionName   string        `json:"selectionName"`
 	CameraAttached  *bool         `json:"cameraAttached"`
 }
 
-type cameraVector struct{ X, Y, Z float64 }
+type cameraVector struct {
+	X float64 `json:"x"`
+	Y float64 `json:"y"`
+	Z float64 `json:"z"`
+}
 
 func elevatedCamera(state renderState) bool {
-	if state.CameraMode != "fps" || state.SelectionOffset == nil || state.CameraRotation == nil {
+	return cameraPoseValid(state) && cameraOffsetWithinRange(state)
+}
+
+func cameraPoseValid(state renderState) bool {
+	if state.CameraMode != "fps" || state.SelectionOffset == nil || state.CameraRotation == nil || state.CameraPosition == nil {
 		return false
 	}
 	near := func(a, b float64) bool { return math.Abs(a-b) <= 0.5 }
 	o, r := state.SelectionOffset, state.CameraRotation
-	return near(o.X, 0) && near(o.Y, 1492.267578125) && near(o.Z, -1006.5472412109375) && near(r.X, 0) && near(r.Y, 56) && near(r.Z, 0)
+	p := state.CameraPosition
+	return finiteCameraVector(*o) && finiteCameraVector(*r) && finiteCameraVector(*p) &&
+		near(o.Y, baseCameraOffset.Y) &&
+		near(r.X, 0) && near(r.Y, 56) && near(r.Z, 0)
+}
+
+func cameraInputControlsValid(state renderState) bool {
+	if state.CameraLockX == nil || state.CameraLockY == nil || state.CameraLockZ == nil ||
+		state.CameraMoveSpeed == nil || state.CameraLookSpeed == nil {
+		return false
+	}
+	return !*state.CameraLockX && !*state.CameraLockY && !*state.CameraLockZ &&
+		finiteNumber(*state.CameraMoveSpeed) && *state.CameraMoveSpeed == 0 &&
+		finiteNumber(*state.CameraLookSpeed) && *state.CameraLookSpeed == 0
+}
+
+func finiteNumber(value float64) bool {
+	return !math.IsNaN(value) && !math.IsInf(value, 0)
+}
+
+func cameraOffsetWithinRange(state renderState) bool {
+	return state.SelectionOffset != nil && horizontalDistance(*state.SelectionOffset, baseCameraOffset) <= maxCameraOffsetDrift
 }
 
 type recordingState struct {

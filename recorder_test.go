@@ -38,11 +38,35 @@ func TestConnectionRefusedFromClosedLocalListener(t *testing.T) {
 }
 
 type fixture struct {
-	cameraProfile bool
-	cameraTrack   bool
-	enforced      bool
-	restored      bool
-	sequence      []struct {
+	cameraProfile              bool
+	cameraLockX                bool
+	cameraLockY                bool
+	cameraLockZ                bool
+	cameraMoveSpeed            float64
+	cameraLookSpeed            float64
+	cameraControlsSet          bool
+	cameraTrack                bool
+	cameraOffsetTrack          bool
+	followOffsets              []cameraVector
+	selectionOffset            cameraVector
+	pendingOffset              *cameraVector
+	pendingOffsetReads         int
+	pendingSequenceOffset      *cameraVector
+	pendingSequenceOffsetReads int
+	deathAckPending            bool
+	deathAckPostIgnored        bool
+	deathAckRenderReads        int
+	deathAckLockedRead         bool
+	deathAckStaleOffset        bool
+	deathAckInitial            cameraVector
+	deathAckCommanded          cameraVector
+	deathAckEmptySeen          bool
+	deathAckDeathSeen          bool
+	deathAckDeathClock         float64
+	deathAckReacquired         bool
+	enforced                   bool
+	restored                   bool
+	sequence                   []struct {
 		Time  float64 `json:"time"`
 		Value string  `json:"value"`
 	}
@@ -156,11 +180,15 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 		}
 		encode(map[string]any{"length": length, "time": current, "paused": true, "seeking": false})
 	case "/liveclientdata/allgamedata":
-		var dead any = (f.mode == "death-respawn" || f.mode == "death-unattached" || f.mode == "death-other-player" || f.mode == "death-stale-data") && f.ticks == 2
+		var dead any = (f.mode == "death-respawn" || f.mode == "death-unattached" || f.mode == "death-other-player" || f.mode == "death-stale-data" || f.mode == "camera-follow-death-ack") && f.ticks == 2
 		if f.mode == "death-unknown" {
 			dead = nil
 		}
 		gameTime := float64(f.ticks) * 30
+		if f.mode == "camera-follow-death-ack" && f.ticks == 2 {
+			f.deathAckDeathSeen = true
+			f.deathAckDeathClock = gameTime
+		}
 		if f.mode == "death-stale-data" {
 			gameTime = 0
 		}
@@ -182,7 +210,54 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 				json.Unmarshal(raw["selectionOffset"], &offset)
 				json.Unmarshal(raw["cameraRotation"], &rotation)
 				json.Unmarshal(raw["cameraMode"], &mode)
-				f.cameraProfile = mode == "fps" && offset.X == 0 && offset.Y > 1400 && offset.Y < 1600 && offset.Z < -900 && offset.Z > -1100 && rotation.Y == 56
+				if raw["cameraMode"] != nil {
+					if f.mode == "camera-profile-offset-ignored" {
+						encode(map[string]any{})
+						return
+					}
+					f.cameraProfile = mode == "fps" && offset.X == 0 && offset.Y > 1400 && offset.Y < 1600 && offset.Z < -900 && offset.Z > -1100 && rotation.Y == 56
+					var controls struct {
+						LockX     bool    `json:"cameraLockX"`
+						LockY     bool    `json:"cameraLockY"`
+						LockZ     bool    `json:"cameraLockZ"`
+						MoveSpeed float64 `json:"cameraMoveSpeed"`
+						LookSpeed float64 `json:"cameraLookSpeed"`
+					}
+					data, _ := json.Marshal(raw)
+					json.Unmarshal(data, &controls)
+					f.cameraControlsSet = raw["cameraLockX"] != nil && raw["cameraLockY"] != nil && raw["cameraLockZ"] != nil && raw["cameraMoveSpeed"] != nil && raw["cameraLookSpeed"] != nil &&
+						!controls.LockX && !controls.LockY && !controls.LockZ && controls.MoveSpeed == 0 && controls.LookSpeed == 0
+					if f.mode != "camera-input-controls-ignored" {
+						f.cameraLockX, f.cameraLockY, f.cameraLockZ = controls.LockX, controls.LockY, controls.LockZ
+						f.cameraMoveSpeed, f.cameraLookSpeed = controls.MoveSpeed, controls.LookSpeed
+					}
+				}
+				if f.mode == "camera-follow-ignored-offset" && raw["cameraMode"] == nil {
+					encode(map[string]any{})
+					return
+				}
+				if f.mode == "camera-follow-delayed-offset" && raw["cameraMode"] == nil {
+					pending := cameraVector{X: offset.X, Y: offset.Y, Z: offset.Z}
+					f.pendingOffset = &pending
+					f.pendingOffsetReads = 2
+					encode(map[string]any{})
+					return
+				}
+				if f.mode == "camera-follow-death-ack" && raw["cameraMode"] == nil && !f.deathAckEmptySeen {
+					// The target dies between the last locked render read and this
+					// accepted-but-ignored dynamic offset update.
+					f.deathAckPending = true
+					f.deathAckPostIgnored = true
+					f.deathAckInitial = f.selectionOffset
+					f.deathAckCommanded = cameraVector{X: offset.X, Y: offset.Y, Z: offset.Z}
+					f.deathAckRenderReads = 0
+					encode(map[string]any{})
+					return
+				}
+				f.selectionOffset = cameraVector{X: offset.X, Y: offset.Y, Z: offset.Z}
+				if raw["cameraMode"] == nil {
+					f.followOffsets = append(f.followOffsets, f.selectionOffset)
+				}
 				encode(map[string]any{})
 				return
 			}
@@ -190,7 +265,7 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 				encode(map[string]any{})
 				return
 			}
-			if f.mode == "api-selection" || f.mode == "respawn-race" {
+			if f.mode == "api-selection" || f.mode == "respawn-race" || f.mode == "camera-follow-death-ack" {
 				var body struct {
 					Name string `json:"selectionName"`
 				}
@@ -210,6 +285,24 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 			http.Error(w, "fixture requires keyboard selection", http.StatusMethodNotAllowed)
 			return
 		}
+		if f.pendingOffset != nil {
+			if f.pendingOffsetReads > 0 {
+				f.pendingOffsetReads--
+			} else {
+				f.selectionOffset = *f.pendingOffset
+				f.followOffsets = append(f.followOffsets, f.selectionOffset)
+				f.pendingOffset = nil
+			}
+		}
+		if f.pendingSequenceOffset != nil {
+			if f.pendingSequenceOffsetReads > 0 {
+				f.pendingSequenceOffsetReads--
+			} else {
+				f.selectionOffset = *f.pendingSequenceOffset
+				f.followOffsets = append(f.followOffsets, f.selectionOffset)
+				f.pendingSequenceOffset = nil
+			}
+		}
 		attached := f.selected && f.mode != "target-lock" && !(f.mode == "lost-lock" && f.ticks >= 2)
 		if f.mode == "reset-lost-lock" && f.ticks >= 4 {
 			attached = false
@@ -219,6 +312,9 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 			name = ""
 		}
 		if f.mode == "death-respawn" && f.ticks == 2 {
+			name = ""
+		}
+		if f.mode == "camera-follow-death-ack" && f.ticks == 2 {
 			name = ""
 		}
 		if f.ticks == 2 {
@@ -233,12 +329,49 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 			}
 		}
 		camera := map[string]any{"selectionName": name, "cameraAttached": attached,
-			"cameraMode": "fps", "selectionOffset": map[string]any{"x": 0, "y": 1492.267578125, "z": -1006.5472412109375}, "cameraRotation": map[string]any{"x": 0, "y": 56, "z": 0}}
+			"cameraMode": "fps", "selectionOffset": f.selectionOffset, "cameraRotation": map[string]any{"x": 0, "y": 56, "z": 0},
+			"cameraLockX": f.cameraLockX, "cameraLockY": f.cameraLockY, "cameraLockZ": f.cameraLockZ,
+			"cameraMoveSpeed": f.cameraMoveSpeed, "cameraLookSpeed": f.cameraLookSpeed}
+		if f.mode == "camera-follow" || f.mode == "camera-follow-ignored-offset" || f.mode == "camera-follow-sequence-ignored" || f.mode == "camera-follow-delayed-offset" || f.mode == "camera-follow-death-ack" {
+			targetX := 5000 + float64(f.ticks)*20
+			cameraPosition := cameraVector{X: targetX + f.selectionOffset.X, Y: 100 + f.selectionOffset.Y, Z: 5000 + f.selectionOffset.Z}
+			camera["cameraPosition"] = cameraPosition
+		} else {
+			camera["cameraPosition"] = cameraVector{X: 5000 + f.selectionOffset.X, Y: 100 + f.selectionOffset.Y, Z: 5000 + f.selectionOffset.Z}
+		}
 		if f.mode == "camera-profile-ignored" {
 			delete(camera, "selectionOffset")
 		}
+		if f.mode == "camera-position-missing" {
+			delete(camera, "cameraPosition")
+		}
+		if f.mode == "camera-input-controls-drift" && f.ticks >= 2 {
+			camera["cameraMoveSpeed"] = 1
+		}
 		if f.mode == "camera-profile-drift" && f.ticks >= 2 {
 			camera["selectionOffset"] = map[string]any{"x": 0, "y": 0, "z": 0}
+		}
+		if (f.mode == "camera-offset-drift-bounded" || f.mode == "camera-offset-drift-large") && f.ticks == 2 {
+			drift := 100.0
+			if f.mode == "camera-offset-drift-large" {
+				drift = 600
+			}
+			camera["selectionOffset"] = cameraVector{X: f.selectionOffset.X + drift, Y: f.selectionOffset.Y, Z: f.selectionOffset.Z}
+		}
+		if f.mode == "camera-follow-death-ack" && f.deathAckPending {
+			f.deathAckRenderReads++
+			if f.deathAckRenderReads == 1 {
+				f.deathAckLockedRead = name == "Player#KR1" && attached
+				f.deathAckStaleOffset = f.selectionOffset == f.deathAckInitial && f.selectionOffset != f.deathAckCommanded
+			} else if f.deathAckRenderReads == 2 {
+				camera["selectionName"] = ""
+				camera["cameraAttached"] = true
+				f.deathAckEmptySeen = true
+				f.deathAckPending = false
+			}
+		}
+		if f.mode == "camera-follow-death-ack" && f.ticks >= 3 && name == "Player#KR1" && attached {
+			f.deathAckReacquired = true
 		}
 		encode(camera)
 	case "/replay/sequence":
@@ -248,12 +381,14 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 		}
 		var body struct {
 			Offset []struct {
-				Time  float64
-				Value struct{ X, Y, Z float64 }
+				Time  float64      `json:"time"`
+				Value cameraVector `json:"value"`
+				Blend string       `json:"blend"`
 			} `json:"selectionOffset"`
 			Rotation []struct {
-				Time  float64
-				Value struct{ X, Y, Z float64 }
+				Time  float64      `json:"time"`
+				Value cameraVector `json:"value"`
+				Blend string       `json:"blend"`
 			} `json:"cameraRotation"`
 			Selection []struct {
 				Time  float64 `json:"time"`
@@ -265,7 +400,28 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 			return
 		}
 		f.sequence = body.Selection
-		f.cameraTrack = len(body.Offset) == 2 && body.Offset[0].Time == 0 && body.Offset[1].Time == 90 && body.Offset[0].Value.Y > 1400 && body.Offset[1].Value.Y > 1400 && body.Offset[0].Value.Z < -900 && body.Offset[1].Value.Z < -900 && len(body.Rotation) == 2 && body.Rotation[0].Value.Y == 56 && body.Rotation[1].Value.Y == 56
+		f.cameraOffsetTrack = len(body.Offset) == 2
+		f.cameraTrack = len(body.Selection) == 2 && len(body.Rotation) == 2 && body.Rotation[0].Value.Y == 56 && body.Rotation[1].Value.Y == 56
+		if len(body.Offset) == 2 {
+			endpoint := body.Offset[1].Value
+			switch {
+			case f.mode == "camera-follow-death-ack" && !f.deathAckEmptySeen:
+				// The target dies after the last locked read; the API accepts the
+				// sequence update but cannot apply it to the vanished selection.
+				f.deathAckPending = true
+				f.deathAckPostIgnored = true
+				f.deathAckInitial = f.selectionOffset
+				f.deathAckCommanded = endpoint
+				f.deathAckRenderReads = 0
+			case f.mode != "camera-follow-sequence-ignored":
+				pending := endpoint
+				f.pendingSequenceOffset = &pending
+				f.pendingSequenceOffsetReads = 1
+				if f.mode == "camera-follow-delayed-offset" {
+					f.pendingSequenceOffsetReads = 2
+				}
+			}
+		}
 		encode(map[string]any{})
 	case "/replay/recording":
 		if request.Method == "POST" {
@@ -342,7 +498,14 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 }
 func testRecorder(t *testing.T, mode string) (*Recorder, Request, *fixture) {
 	t.Helper()
-	f := &fixture{mode: mode}
+	f := &fixture{mode: mode, selectionOffset: cameraVector{X: 0, Y: 1492.267578125, Z: -1006.5472412109375}}
+	if mode == "camera-input-controls-ignored" {
+		f.cameraLockX, f.cameraLockY, f.cameraLockZ = true, true, true
+		f.cameraMoveSpeed, f.cameraLookSpeed = 100, 1
+	}
+	if mode == "camera-profile-offset-ignored" {
+		f.selectionOffset.X = 100
+	}
 	server := httptest.NewServer(http.HandlerFunc(f.serve))
 	t.Cleanup(server.Close)
 	r, err := New(Config{ReplayURL: server.URL, PollInterval: time.Millisecond, LaunchTimeout: 300 * time.Millisecond, FinalizeTimeout: time.Second})
@@ -369,7 +532,8 @@ func TestRecordFull(t *testing.T) {
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if !f.selected || !f.verified || !f.closed || f.start != -5 || f.end != 90 {
+	if !f.selected || !f.verified || !f.closed || f.start != -5 || f.end != 90 || !f.cameraControlsSet ||
+		f.cameraLockX || f.cameraLockY || f.cameraLockZ || f.cameraMoveSpeed != 0 || f.cameraLookSpeed != 0 {
 		t.Fatalf("incomplete lifecycle: %+v", f)
 	}
 	if _, err := os.Stat(request.OutputPath + ".recorder-lock"); !errors.Is(err, os.ErrNotExist) {

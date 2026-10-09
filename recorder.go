@@ -119,6 +119,46 @@ func wait(ctx context.Context, interval time.Duration) error {
 		return nil
 	}
 }
+
+func (r *Recorder) waitForCameraOffset(ctx context.Context, target player, id RiotID, expected cameraVector, gameTime float64) (renderState, bool, error) {
+	ackCtx, cancel := context.WithTimeout(ctx, cameraOffsetAckTimeout)
+	defer cancel()
+	var latest renderState
+	for attempt := 0; attempt < cameraOffsetAckAttempts; attempt++ {
+		if err := r.api.request(ackCtx, "GET", "/replay/render", nil, &latest); err != nil {
+			if ctx.Err() != nil {
+				return latest, false, ctx.Err()
+			}
+			if errors.Is(err, context.DeadlineExceeded) {
+				return latest, false, cameraOffsetAckError(gameTime, latest.SelectionOffset, expected)
+			}
+			return latest, false, err
+		}
+		if !cameraPoseValid(latest) || !cameraOffsetWithinRange(latest) || !cameraInputControlsValid(latest) {
+			return latest, false, fmt.Errorf("%w at %.3fs (camera profile or FPS input controls changed while awaiting offset readback %+v, expected %+v)", ErrCameraLock, gameTime, latest.SelectionOffset, expected)
+		}
+		if latest.SelectionName == "" && latest.CameraAttached != nil && *latest.CameraAttached {
+			return latest, true, nil
+		}
+		if !locked(latest, target, id) {
+			return latest, false, fmt.Errorf("%w at %.3fs (selection %q while awaiting camera offset readback)", ErrCameraLock, gameTime, latest.SelectionName)
+		}
+		if cameraOffsetMatches(*latest.SelectionOffset, expected) {
+			return latest, false, nil
+		}
+		if attempt+1 == cameraOffsetAckAttempts {
+			return latest, false, cameraOffsetAckError(gameTime, latest.SelectionOffset, expected)
+		}
+		if err := wait(ackCtx, cameraOffsetAckInterval); err != nil {
+			if ctx.Err() != nil {
+				return latest, false, ctx.Err()
+			}
+			return latest, false, cameraOffsetAckError(gameTime, latest.SelectionOffset, expected)
+		}
+	}
+	return latest, false, cameraOffsetAckError(gameTime, latest.SelectionOffset, expected)
+}
+
 func validateRequest(request Request) (Request, error) {
 	id, err := ParseRiotID(request.Target.String())
 	if err != nil {
@@ -343,24 +383,23 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 	// A selection track places the camera at the object's origin unless an
 	// offset is supplied. Use the client's normal 56-degree elevated view;
 	// name/attachment alone can otherwise report success from inside terrain.
-	offset := map[string]float64{"x": 0, "y": 1492.267578125, "z": -1006.5472412109375}
-	rotation := map[string]float64{"x": 0, "y": 56, "z": 0}
+	offset := baseCameraOffset
+	rotation := baseCameraRotation
 	if err = r.api.request(loadCtx, "POST", "/replay/render", map[string]any{
 		"cameraMode": "fps", "selectionOffset": offset, "cameraRotation": rotation,
+		"cameraLockX": false, "cameraLockY": false, "cameraLockZ": false,
+		"cameraMoveSpeed": 0, "cameraLookSpeed": 0,
 	}, nil); err != nil {
 		return result, err
 	}
-	// Apply a constant selection track so encoder seeks reselect the same player
-	// on every render frame, rather than losing the object reference at time zero.
+	// Keep the player and camera angle on the render sequence. The offset stays
+	// dynamic so the camera can ease behind the selected player.
 	if err = r.api.request(loadCtx, "POST", "/replay/sequence", map[string]any{
 		"selectionName": []map[string]any{
 			{"time": 0, "value": selectionName, "blend": "snap"},
 			{"time": length, "value": selectionName, "blend": "snap"},
 		},
-		"selectionOffset": []map[string]any{
-			{"time": 0, "value": offset, "blend": "snap"},
-			{"time": length, "value": offset, "blend": "snap"},
-		},
+		"selectionOffset": []cameraVector{},
 		"cameraRotation": []map[string]any{
 			{"time": 0, "value": rotation, "blend": "snap"},
 			{"time": length, "value": rotation, "blend": "snap"},
@@ -372,9 +411,14 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 	if err = r.api.request(loadCtx, "GET", "/replay/render", nil, &prepared); err != nil {
 		return result, err
 	}
-	if !elevatedCamera(prepared) {
+	if !elevatedCamera(prepared) || !cameraInputControlsValid(prepared) || !locked(prepared, target, request.Target) || !cameraOffsetMatches(*prepared.SelectionOffset, baseCameraOffset) {
 		return result, ErrCameraLock
 	}
+	follower := &cameraFollower{}
+	if _, ok := follower.follow(prepared, playback.Time, time.Now()); !ok {
+		return result, ErrCameraLock
+	}
+	expectedCameraOffset := baseCameraOffset
 	if _, e = os.Lstat(request.OutputPath); e == nil {
 		return result, ErrOutputExists
 	} else if !errors.Is(e, os.ErrNotExist) {
@@ -404,6 +448,7 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 	defer cancelRecord()
 	started := false
 	startDeadline := time.Now().Add(15 * time.Second)
+	lastProgressAt := time.Now()
 	for {
 		if process.exited() {
 			return result, errors.New("game exited during recording")
@@ -456,10 +501,22 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 		if err = r.api.request(recordingCtx, "GET", "/replay/render", nil, &render); err != nil {
 			return result, err
 		}
-		if !elevatedCamera(render) {
+		lifecycleReset := follower.requiresLifecycleReset(state.Current)
+		selectionLocked := locked(render, target, request.Target)
+		if !cameraPoseValid(render) {
+			return result, fmt.Errorf("%w at %.3fs (camera view changed)", ErrCameraLock, state.Current)
+		}
+		if !cameraInputControlsValid(render) {
+			return result, fmt.Errorf("%w at %.3fs (FPS camera input controls changed)", ErrCameraLock, state.Current)
+		}
+		if selectionLocked && !lifecycleReset && !cameraOffsetMatches(*render.SelectionOffset, expectedCameraOffset) {
+			return result, fmt.Errorf("%w at %.3fs (between-update camera follow offset readback %+v, expected %+v)", ErrCameraLock, state.Current, *render.SelectionOffset, expectedCameraOffset)
+		}
+		if !cameraOffsetWithinRange(render) && !(lifecycleReset && selectionLocked) {
 			return result, fmt.Errorf("%w at %.3fs (camera view changed)", ErrCameraLock, state.Current)
 		}
 		if !locked(render, target, request.Target) {
+			follower.suspend()
 			// Starting the encoder seeks back to zero, temporarily removing game
 			// objects. Only an empty selection in the initial 250 ms may recover;
 			// a different selected player or any later lock loss remains fatal.
@@ -489,7 +546,9 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 				if err = r.api.request(recordingCtx, "GET", "/replay/render", nil, &render); err != nil {
 					return result, err
 				}
-				if !elevatedCamera(render) {
+				lifecycleReset = follower.requiresLifecycleReset(state.Current)
+				selectionLocked = locked(render, target, request.Target)
+				if !cameraPoseValid(render) || !cameraInputControlsValid(render) || (!cameraOffsetWithinRange(render) && !(lifecycleReset && selectionLocked)) {
 					return result, ErrCameraLock
 				}
 			}
@@ -507,10 +566,68 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 				}
 			}
 		}
+		if locked(render, target, request.Target) {
+			if *state.Recording {
+				lifecycleReset = follower.requiresLifecycleReset(state.Current)
+				if !lifecycleReset && !cameraOffsetMatches(*render.SelectionOffset, expectedCameraOffset) {
+					return result, fmt.Errorf("%w at %.3fs (between-update camera follow offset readback %+v, expected %+v)", ErrCameraLock, state.Current, *render.SelectionOffset, expectedCameraOffset)
+				}
+				offset, ok := follower.follow(render, state.Current, time.Now())
+				if !ok {
+					return result, ErrCameraLock
+				}
+				if !cameraOffsetMatches(offset, *render.SelectionOffset) {
+					const cameraTransitionDuration = 0.1
+					if length-state.Current >= cameraTransitionDuration {
+						endpointTime := state.Current + cameraTransitionDuration
+						sequence := map[string]any{
+							"selectionName": []map[string]any{
+								{"time": 0, "value": selectionName, "blend": "snap"},
+								{"time": length, "value": selectionName, "blend": "snap"},
+							},
+							"selectionOffset": []map[string]any{
+								{"time": state.Current, "value": *render.SelectionOffset, "blend": "linear"},
+								{"time": endpointTime, "value": offset, "blend": "linear"},
+							},
+							"cameraRotation": []map[string]any{
+								{"time": 0, "value": baseCameraRotation, "blend": "snap"},
+								{"time": length, "value": baseCameraRotation, "blend": "snap"},
+							},
+						}
+						if err = r.api.request(recordingCtx, "POST", "/replay/sequence", sequence, nil); err != nil {
+							return result, fmt.Errorf("update camera follow sequence: %w", err)
+						}
+						var selectionLost bool
+						_, selectionLost, err = r.waitForCameraOffset(recordingCtx, target, request.Target, offset, state.Current)
+						if err != nil {
+							return result, err
+						}
+						if selectionLost {
+							follower.suspend()
+							if err = wait(recordingCtx, cameraPollInterval(r.config.PollInterval)); err != nil {
+								return result, err
+							}
+							continue
+						}
+						expectedCameraOffset = offset
+					} else {
+						// Hold the last acknowledged position near the replay end.
+						expectedCameraOffset = *render.SelectionOffset
+					}
+				} else {
+					// Keep readback as the acknowledgement when smoothing does not move
+					// far enough to send a new sequence update.
+					expectedCameraOffset = *render.SelectionOffset
+				}
+			}
+		}
 		if *state.Recording {
 			started = true
 		}
-		r.emit(stage, state.Current, length)
+		if time.Since(lastProgressAt) >= r.config.PollInterval || !*state.Recording {
+			r.emit(stage, state.Current, length)
+			lastProgressAt = time.Now()
+		}
 		if !*state.Recording {
 			if !started && state.Current < length-0.5 && time.Now().Before(startDeadline) {
 				if err = wait(recordingCtx, r.config.PollInterval); err != nil {
@@ -523,7 +640,7 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 			}
 			break
 		}
-		if err = wait(recordingCtx, r.config.PollInterval); err != nil {
+		if err = wait(recordingCtx, cameraPollInterval(r.config.PollInterval)); err != nil {
 			return result, err
 		}
 	}
