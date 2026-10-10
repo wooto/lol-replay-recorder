@@ -611,12 +611,23 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 	var recoveryBudget focusBudget
 	deadFocusPending := false
 	lastObservedCurrent := 0.0
+	endingReadsStarted := false
 	for {
+		nearEnd := started && lastObservedCurrent >= toSeconds-1
+		if nearEnd && !endingReadsStarted {
+			endingCtx, cancelEnding := context.WithTimeout(recordingCtx, r.config.FinalizeTimeout)
+			defer cancelEnding()
+			recordingCtx = endingCtx
+			endingReadsStarted = true
+		}
 		if process.exited() {
 			return result, errors.New("game exited during recording")
 		}
 		var owner gameState
 		if err = r.api.request(recordingCtx, "GET", "/replay/game", nil, &owner); err != nil {
+			if retryEndingRead(recordingCtx, err, nearEnd) {
+				continue
+			}
 			return result, err
 		}
 		if owner.PID != process.pid() {
@@ -625,6 +636,9 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 		state, readErr := r.recordingStatus(recordingCtx, process.pid(), started && lastObservedCurrent >= toSeconds-1)
 		if readErr != nil {
 			err = readErr
+			if retryEndingRead(recordingCtx, err, nearEnd) {
+				continue
+			}
 			return result, err
 		}
 		if state.Recording == nil {
@@ -661,6 +675,13 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 			return result, errors.New("Replay API recording range or output differs from request")
 		}
 		lastObservedCurrent = state.Current
+		nearEnd = started && lastObservedCurrent >= toSeconds-1
+		if nearEnd && !endingReadsStarted {
+			endingCtx, cancelEnding := context.WithTimeout(recordingCtx, r.config.FinalizeTimeout)
+			defer cancelEnding()
+			recordingCtx = endingCtx
+			endingReadsStarted = true
+		}
 		// Native completion may reset camera/UI objects. A watcher must stop
 		// with capture, rather than refocusing an already finished recording.
 		if r.config.RecoverFocus && started && !*state.Recording && state.Current >= toSeconds-0.5 {
@@ -668,10 +689,27 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 		}
 		var render renderState
 		if err = r.api.request(recordingCtx, "GET", "/replay/render", nil, &render); err != nil {
+			if retryEndingRead(recordingCtx, err, nearEnd) {
+				continue
+			}
 			return result, err
 		}
 		preRoll := state.Current < fromSeconds
 		selectionLocked := locked(render, target, request.Target)
+		if r.config.RecoverFocus && nearEnd && !selectionLocked {
+			// Encoding may finish between the status and camera reads. Recheck
+			// completion before sending keys into a reset post-recording view.
+			latest, readErr := r.recordingStatus(recordingCtx, process.pid(), true)
+			if readErr != nil {
+				if retryEndingRead(recordingCtx, readErr, true) {
+					continue
+				}
+				return result, readErr
+			}
+			if latest.Recording != nil && !*latest.Recording {
+				continue
+			}
+		}
 		if preRoll {
 			// Native pre-roll is before the requested video interval. Keep proving
 			// the target selection, but rebase camera following at the first frame

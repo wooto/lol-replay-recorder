@@ -68,7 +68,7 @@ func (p *ownedProcess) close() error {
 	select {
 	case <-p.finished:
 		return nil
-	case <-time.After(5 * time.Second):
+	case <-time.After(30 * time.Second):
 		return errors.New("owned game process did not exit")
 	}
 }

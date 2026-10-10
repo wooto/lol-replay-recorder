@@ -39,6 +39,7 @@ func TestConnectionRefusedFromClosedLocalListener(t *testing.T) {
 }
 
 type fixture struct {
+	endingReadDelayed                             bool
 	deadCameraReattached                          bool
 	roster                                        []map[string]any
 	expectedSelectionKey                          uint16
@@ -179,6 +180,18 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 	defer f.mu.Unlock()
 	w.Header().Set("Content-Type", "application/json")
 	encode := func(v any) { _ = json.NewEncoder(w).Encode(v) }
+	endingPath := "/replay/render"
+	if f.mode == "ending-owner-timeout" || f.mode == "ending-owner-persistent" {
+		endingPath = "/replay/game"
+	}
+	delayTick := 3
+	if f.mode == "mid-render-timeout" {
+		delayTick = 2
+	}
+	if (f.mode == "ending-render-timeout" || f.mode == "ending-owner-timeout" || f.mode == "ending-owner-persistent" || f.mode == "mid-render-timeout") && request.Method == "GET" && request.URL.Path == endingPath && f.ticks == delayTick && (!f.endingReadDelayed || f.mode == "ending-owner-persistent") {
+		f.endingReadDelayed = true
+		time.Sleep(70 * time.Millisecond)
+	}
 	switch request.URL.Path {
 	case "/replay/game":
 		if f.mode == "preflight-error" && !f.launched {
@@ -374,6 +387,10 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 		}
 		if f.mode == "respawn-race" && f.ticks == 2 && !f.restored {
 			name = ""
+		}
+		if f.mode == "ending-render-reset" && f.ticks >= 3 {
+			name = ""
+			attached = false
 		}
 		if f.mode == "death-respawn" && f.ticks == 2 {
 			name = ""

@@ -78,7 +78,7 @@ func (p *gameProcess) Close() error {
 		if err = syscall.TerminateProcess(p.handle, 0); err != nil {
 			return err
 		}
-		if result, err = syscall.WaitForSingleObject(p.handle, 5000); err != nil {
+		if result, err = syscall.WaitForSingleObject(p.handle, 30_000); err != nil {
 			return err
 		} else if result != syscall.WAIT_OBJECT_0 {
 			return errors.New("game process did not exit")

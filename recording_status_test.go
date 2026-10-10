@@ -64,3 +64,41 @@ func TestRecordingStatusFinalizationTimeout(t *testing.T) {
 		})
 	}
 }
+
+func TestRecordingCompletesAfterEndingCameraOrOwnerTimeout(t *testing.T) {
+	for _, mode := range []string{"ending-render-timeout", "ending-owner-timeout", "ending-render-reset"} {
+		t.Run(mode, func(t *testing.T) {
+			r, request, f := testRecorder(t, mode)
+			r.config.RecoverFocus = true
+			r.config.NativeFollow = true
+			r.config.FinalizeTimeout = 2 * time.Second
+			r.config.LaunchTimeout = 5 * time.Second
+			r.api.client.Timeout = 20 * time.Millisecond
+			if _, err := r.RecordFull(context.Background(), request); err != nil {
+				t.Fatal(err)
+			}
+			if (!f.endingReadDelayed && mode != "ending-render-reset") || !f.verified || !f.closed || f.selectCalls != 1 {
+				t.Fatalf("delayed=%t verified=%t closed=%t selections=%d", f.endingReadDelayed, f.verified, f.closed, f.selectCalls)
+			}
+		})
+	}
+}
+
+func TestEndingReadRetryRejectsMidCaptureAndPersistentTimeouts(t *testing.T) {
+	for _, mode := range []string{"mid-render-timeout", "ending-owner-persistent"} {
+		t.Run(mode, func(t *testing.T) {
+			r, request, f := testRecorder(t, mode)
+			r.config.RecoverFocus = true
+			r.config.NativeFollow = true
+			r.config.LaunchTimeout = 5 * time.Second
+			r.config.FinalizeTimeout = 350 * time.Millisecond
+			r.api.client.Timeout = 20 * time.Millisecond
+			if _, err := r.RecordFull(context.Background(), request); err == nil {
+				t.Fatal("accepted an unverified or indefinitely stalled capture")
+			}
+			if !f.endingReadDelayed || f.verified || !f.closed {
+				t.Fatalf("delayed=%t verified=%t closed=%t", f.endingReadDelayed, f.verified, f.closed)
+			}
+		})
+	}
+}
