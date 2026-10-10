@@ -38,40 +38,39 @@ func TestConnectionRefusedFromClosedLocalListener(t *testing.T) {
 }
 
 type fixture struct {
-	roster                     []map[string]any
-	expectedSelectionKey       uint16
-	cameraProfile              bool
-	cameraLockX                bool
-	cameraLockY                bool
-	cameraLockZ                bool
-	cameraMoveSpeed            float64
-	cameraLookSpeed            float64
-	cameraControlsSet          bool
-	cameraTrack                bool
-	cameraOffsetTrack          bool
-	followOffsets              []cameraVector
-	selectionOffset            cameraVector
-	pendingOffset              *cameraVector
-	pendingOffsetReads         int
-	pendingSequenceOffset      *cameraVector
-	pendingSequenceOffsetReads int
-	deathAckPending            bool
-	deathAckPostIgnored        bool
-	deathAckRenderReads        int
-	deathAckLockedRead         bool
-	deathAckStaleOffset        bool
-	deathAckInitial            cameraVector
-	deathAckCommanded          cameraVector
-	deathAckEmptySeen          bool
-	deathAckDeathSeen          bool
-	deathAckDeathClock         float64
-	deathAckReacquired         bool
-	enforced                   bool
-	restored                   bool
-	sequence                   []struct {
-		Time  float64 `json:"time"`
-		Value string  `json:"value"`
-	}
+	roster                                        []map[string]any
+	expectedSelectionKey                          uint16
+	cameraProfile                                 bool
+	cameraLockX                                   bool
+	cameraLockY                                   bool
+	cameraLockZ                                   bool
+	cameraMoveSpeed                               float64
+	cameraLookSpeed                               float64
+	cameraControlsSet                             bool
+	cameraTrack                                   bool
+	selectionWrites                               int
+	selectionTrackWrites                          int
+	selectCalls                                   int
+	cameraOffsetTrack                             bool
+	followOffsets                                 []cameraVector
+	selectionOffset                               cameraVector
+	pendingOffset                                 *cameraVector
+	pendingOffsetReads                            int
+	pendingSequenceOffset                         *cameraVector
+	pendingSequenceOffsetReads                    int
+	deathAckPending                               bool
+	deathAckPostIgnored                           bool
+	deathAckRenderReads                           int
+	deathAckLockedRead                            bool
+	deathAckStaleOffset                           bool
+	deathAckInitial                               cameraVector
+	deathAckCommanded                             cameraVector
+	deathAckEmptySeen                             bool
+	deathAckDeathSeen                             bool
+	deathAckDeathClock                            float64
+	deathAckReacquired                            bool
+	enforced                                      bool
+	restored                                      bool
 	mu                                            sync.Mutex
 	launched, selected, closed, stopped, verified bool
 	mode                                          string
@@ -108,7 +107,11 @@ func (d fakeDesktop) selectPlayer(_ context.Context, _ int, key uint16) error {
 	if key != expected {
 		return fmt.Errorf("wrong player key %d", key)
 	}
+	d.f.selectCalls++
 	d.f.selected = true
+	if (d.f.mode == "respawn-race" || d.f.mode == "camera-follow-death-ack") && d.f.ticks == 2 {
+		d.f.restored = true
+	}
 	return nil
 }
 
@@ -296,24 +299,8 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 				encode(map[string]any{})
 				return
 			}
-			if f.mode == "ignored-api" {
-				encode(map[string]any{})
-				return
-			}
-			if f.mode == "api-selection" || f.mode == "respawn-race" || f.mode == "camera-follow-death-ack" {
-				var body struct {
-					Name string `json:"selectionName"`
-				}
-				data, _ := json.Marshal(raw)
-				if err := json.Unmarshal(data, &body); err != nil {
-					t := "invalid selection"
-					http.Error(w, t, 400)
-					return
-				}
-				f.selected = body.Name == "Player#KR1"
-				if f.mode == "respawn-race" && f.ticks == 2 {
-					f.restored = true
-				}
+			if raw["selectionName"] != nil {
+				f.selectionWrites++
 				encode(map[string]any{})
 				return
 			}
@@ -349,7 +336,7 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 		if f.mode == "death-respawn" && f.ticks == 2 {
 			name = ""
 		}
-		if f.mode == "camera-follow-death-ack" && f.ticks == 2 {
+		if f.mode == "camera-follow-death-ack" && f.ticks == 2 && !f.restored {
 			name = ""
 		}
 		if f.ticks == 2 {
@@ -438,9 +425,9 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 			http.Error(w, "invalid sequence", 400)
 			return
 		}
-		f.sequence = body.Selection
 		f.cameraOffsetTrack = len(body.Offset) == 2
-		f.cameraTrack = len(body.Selection) == 2 && len(body.Rotation) == 2 && body.Rotation[0].Value.Y == 56 && body.Rotation[1].Value.Y == 56
+		f.selectionTrackWrites += len(body.Selection)
+		f.cameraTrack = len(body.Rotation) == 2 && body.Rotation[0].Value.Y == 56 && body.Rotation[1].Value.Y == 56
 		if len(body.Offset) == 2 {
 			endpoint := body.Offset[1].Value
 			switch {
@@ -609,7 +596,7 @@ func TestRecordFullSelectsPlayerByOrderWithinTeam(t *testing.T) {
 		{"blue-third-interleaved", []string{"ORDER", "CHAOS", "ORDER", "CHAOS", "ORDER"}, 4, '3'},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
-			r, request, f := testRecorder(t, "ignored-api")
+			r, request, f := testRecorder(t, "")
 			f.expectedSelectionKey = scenario.key
 			for i, team := range scenario.teams {
 				id := fmt.Sprintf("Other%d#KR1", i)

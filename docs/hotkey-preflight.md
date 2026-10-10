@@ -45,7 +45,14 @@ in the comparison. Foreground acquisition can still be denied by Windows.
 Native observer readback reported `cameraAttached=false` despite selection, so
 the existing attachment check still rejects that path. This does not establish
 successful FULL recording with the native spectator camera.
-The existing FPS camera/recording behavior is unchanged.
+The FPS camera and recording configuration is unchanged.
+
+The recorder now uses this same team-slot mapping for the primary target
+selection and for recovery if the client clears an empty selection at startup or
+respawn. Each input first focuses the owned replay window; Replay API
+`selectionName` is read back to verify that the intended Riot ID was selected,
+but is never written as a target command or sequence track. Camera mode, camera
+offset, rotation, and follow keyframes continue to use the Replay API.
 
 Riot documents double presses of `1–5` / `Q,W,E,R,T` for champion locking in its
 [Replays FAQ](https://support.riotgames.com/en-us/league-of-legends/gameplay/replays-faq-pro-tips).

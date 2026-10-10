@@ -373,8 +373,8 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 	}
 	// Seek and pause before targeting, so no game content is lost during setup.
 	// At exact time zero current clients have not created selectable champions.
-	// Prepare within the existing 250 ms start tolerance; recording still requests
-	// a five-second native pre-roll and validates the decoded video from zero.
+	// Prepare at 0.1; full capture and explicit intervals each apply their
+	// calibrated native start and validate decoded video against the requested range.
 	if err = r.api.request(loadCtx, "POST", "/replay/playback", map[string]any{"time": 0.1, "paused": true, "speed": 1}, nil); err != nil {
 		return result, err
 	}
@@ -409,40 +409,22 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 	stage = StageTarget
 	r.emit(stage, 0, length)
 	verified := false
-	selectionName := ""
 	for attempt := 0; attempt < 5; attempt++ {
-		name := request.Target.String()
-		if target.NameUnique {
-			name = request.Target.GameName
-		}
-		// Prefer the documented Replay API over keyboard bindings. A short name is
-		// safe only after proving it identifies exactly one participant.
-		// A successful POST can still ignore an unsupported selection name.
-		// After its first unverified result, try the configured player bindings.
-		if attempt > 0 || r.api.request(loadCtx, "POST", "/replay/render", map[string]any{"selectionName": name, "cameraAttached": true}, nil) != nil {
-			if err = r.desktop.selectPlayer(loadCtx, process.pid(), r.config.SelectionKeys[index]); err != nil {
-				return result, err
-			}
-		}
-		if err = wait(loadCtx, r.config.PollInterval); err != nil {
-			return result, err
-		}
 		var render renderState
-		if err = r.api.request(loadCtx, "GET", "/replay/render", nil, &render); err != nil {
+		render, err = r.selectTarget(loadCtx, process.pid(), r.config.SelectionKeys[index])
+		if err != nil {
 			return result, err
 		}
 		if locked(render, target, request.Target) {
 			verified = true
-			selectionName = render.SelectionName
 			break
 		}
 	}
 	if !verified {
 		return result, ErrCameraLock
 	}
-	// A selection track places the camera at the object's origin unless an
-	// offset is supplied. Use the client's normal 56-degree elevated view;
-	// name/attachment alone can otherwise report success from inside terrain.
+	// Use the client's normal 56-degree elevated view; hotkey selection and
+	// attachment alone can otherwise report success from inside terrain.
 	offset := baseCameraOffset
 	rotation := baseCameraRotation
 	if err = r.api.request(loadCtx, "POST", "/replay/render", map[string]any{
@@ -452,13 +434,9 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 	}, nil); err != nil {
 		return result, err
 	}
-	// Keep the player and camera angle on the render sequence. The offset stays
-	// dynamic so the camera can ease behind the selected player.
+	// Preserve the camera angle on the render sequence. Target selection remains
+	// a hotkey action, with identity verified through render readback.
 	if err = r.api.request(loadCtx, "POST", "/replay/sequence", map[string]any{
-		"selectionName": []map[string]any{
-			{"time": 0, "value": selectionName, "blend": "snap"},
-			{"time": length, "value": selectionName, "blend": "snap"},
-		},
 		"selectionOffset": []cameraVector{},
 		"cameraRotation": []map[string]any{
 			{"time": 0, "value": rotation, "blend": "snap"},
@@ -629,34 +607,32 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 			atEncoderStart := state.Current >= encoderStart-0.25 && state.Current <= encoderStart+0.25
 			atVideoStart := state.Current >= fromSeconds-0.25 && state.Current <= fromSeconds+0.25
 			if (atEncoderStart || atVideoStart) && render.SelectionName == "" && time.Now().Before(startDeadline) {
-				if err = r.api.request(recordingCtx, "POST", "/replay/render", map[string]any{"selectionName": selectionName, "cameraAttached": true}, nil); err != nil {
+				render, err = r.selectTarget(recordingCtx, process.pid(), r.config.SelectionKeys[index])
+				if err != nil {
 					return result, err
 				}
-				if err = wait(recordingCtx, 50*time.Millisecond); err != nil {
-					return result, err
+				if !locked(render, target, request.Target) && render.SelectionName != "" {
+					return result, fmt.Errorf("%w at startup (selected %q)", ErrCameraLock, render.SelectionName)
 				}
 				continue
 			}
 			if preRoll {
 				return result, fmt.Errorf("%w during interval pre-roll at %.3fs", ErrCameraLock, state.Current)
 			}
-			// A dead champion can disappear as a selectable object. Keep the
-			// verified constant selection track through death only when live data
-			// explicitly confirms this same target is dead and no other object was
-			// selected. The next alive frame must again prove the camera lock.
+			// A dead champion can disappear as a selectable object. Permit an
+			// empty attached selection only when live data confirms this same target
+			// is dead. The next alive frame must verify hotkey selection again.
 			var live gameData
 			if render.SelectionName != "" || render.CameraAttached == nil || !*render.CameraAttached {
 				return result, fmt.Errorf("%w at %.3fs (selection %q)", ErrCameraLock, state.Current, render.SelectionName)
 			}
-			// Render and live-data snapshots can straddle a respawn. Try one
-			// bounded re-selection of the already verified target and read it back.
-			if r.api.request(recordingCtx, "POST", "/replay/render", map[string]any{"selectionName": selectionName, "cameraAttached": true}, nil) == nil {
-				if err = wait(recordingCtx, 50*time.Millisecond); err != nil {
-					return result, err
-				}
-				if err = r.api.request(recordingCtx, "GET", "/replay/render", nil, &render); err != nil {
-					return result, err
-				}
+			// Render and live-data snapshots can straddle a respawn. Re-focus the
+			// owned game and select the same team slot through its verified hotkey.
+			render, err = r.selectTarget(recordingCtx, process.pid(), r.config.SelectionKeys[index])
+			if err != nil {
+				return result, err
+			}
+			if locked(render, target, request.Target) {
 				lifecycleReset = follower.requiresLifecycleReset(state.Current)
 				selectionLocked = locked(render, target, request.Target)
 				if !cameraPoseValid(render) || !cameraInputControlsValid(render) || (!cameraOffsetWithinRange(render) && !(lifecycleReset && selectionLocked)) {
@@ -692,10 +668,6 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 					if length-state.Current >= cameraTransitionDuration {
 						endpointTime := state.Current + cameraTransitionDuration
 						sequence := map[string]any{
-							"selectionName": []map[string]any{
-								{"time": 0, "value": selectionName, "blend": "snap"},
-								{"time": length, "value": selectionName, "blend": "snap"},
-							},
 							"selectionOffset": []map[string]any{
 								{"time": state.Current, "value": *render.SelectionOffset, "blend": "linear"},
 								{"time": endpointTime, "value": offset, "blend": "linear"},
@@ -786,6 +758,23 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 		return result, err
 	}
 	return Result{Path: request.OutputPath, Target: request.Target, DurationSeconds: duration, StartedAt: start, FinishedAt: time.Now().UTC()}, nil
+}
+
+// selectTarget focuses the owned replay window, selects a spectator slot using
+// its configured hotkey, and returns the Replay API readback for identity
+// verification. Selection itself is deliberately never written through the API.
+func (r *Recorder) selectTarget(ctx context.Context, pid int, key uint16) (renderState, error) {
+	if err := r.desktop.selectPlayer(ctx, pid, key); err != nil {
+		return renderState{}, err
+	}
+	if err := wait(ctx, r.config.PollInterval); err != nil {
+		return renderState{}, err
+	}
+	var render renderState
+	if err := r.api.request(ctx, "GET", "/replay/render", nil, &render); err != nil {
+		return renderState{}, err
+	}
+	return render, nil
 }
 
 // Winsock returns WSAECONNREFUSED (10061), whereas syscall.ECONNREFUSED
