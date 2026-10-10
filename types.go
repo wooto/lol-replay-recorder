@@ -19,6 +19,7 @@ var (
 	ErrClientBusy          = errors.New("a replay client is already running")
 	ErrRecordingIncomplete = errors.New("recording did not cover the requested interval")
 	ErrHotkeySettings      = errors.New("spectator hotkey settings could not be verified")
+	ErrForegroundDenied    = errors.New("Windows denied game window focus; use an unlocked interactive desktop")
 )
 
 // RiotID identifies a player by their complete game name and tag line.

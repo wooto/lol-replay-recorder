@@ -413,6 +413,12 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 		var render renderState
 		render, err = r.selectTarget(loadCtx, process.pid(), r.config.SelectionKeys[index])
 		if err != nil {
+			if r.config.RecoverFocus && errors.Is(err, ErrForegroundDenied) {
+				if err = wait(loadCtx, 150*time.Millisecond); err != nil {
+					return result, err
+				}
+				continue
+			}
 			return result, err
 		}
 		if locked(render, target, request.Target) {
@@ -565,7 +571,7 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 	started := false
 	startDeadline := time.Now().Add(15 * time.Second)
 	lastProgressAt := time.Now()
-	var focusRecoveries []time.Time
+	var recoveryBudget focusBudget
 	for {
 		if process.exited() {
 			return result, errors.New("game exited during recording")
@@ -640,14 +646,9 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 			confirmedDeath = e == nil && current.Team == target.Team && current.IsDead != nil && *current.IsDead && live.Clock.Time != nil && finiteNumber(*live.Clock.Time) && math.Abs(*live.Clock.Time-state.Current) <= 2
 		}
 		if r.config.RecoverFocus && !confirmedDeath && focusDrift(render, target, request.Target, expectedCameraOffset, !preRoll && !lifecycleReset) {
-			now := time.Now()
-			for len(focusRecoveries) > 0 && now.Sub(focusRecoveries[0]) > 30*time.Second {
-				focusRecoveries = focusRecoveries[1:]
-			}
-			if len(focusRecoveries) >= 5 {
+			if !recoveryBudget.allow(time.Now()) {
 				return result, fmt.Errorf("%w: focus unstable after five recoveries in 30 seconds", ErrCameraLock)
 			}
-			focusRecoveries = append(focusRecoveries, now)
 			render, err = r.recoverFocus(recordingCtx, process.pid(), r.config.SelectionKeys[index], target, request.Target, state.Current)
 			if err != nil {
 				return result, err
@@ -757,14 +758,9 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 						_, selectionLost, err = r.waitForCameraOffset(recordingCtx, target, request.Target, offset, state.Current)
 						if err != nil {
 							if r.config.RecoverFocus && errors.Is(err, ErrCameraLock) {
-								now := time.Now()
-								for len(focusRecoveries) > 0 && now.Sub(focusRecoveries[0]) > 30*time.Second {
-									focusRecoveries = focusRecoveries[1:]
-								}
-								if len(focusRecoveries) >= 5 {
+								if !recoveryBudget.allow(time.Now()) {
 									return result, err
 								}
-								focusRecoveries = append(focusRecoveries, now)
 								if _, err = r.recoverFocus(recordingCtx, process.pid(), r.config.SelectionKeys[index], target, request.Target, state.Current); err != nil {
 									return result, err
 								}

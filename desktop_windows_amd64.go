@@ -171,7 +171,7 @@ func (nativeDesktop) selectPlayer(ctx context.Context, pid int, key uint16) erro
 		}
 		foreground, _, _ = getForeground.Call()
 		if foreground != window {
-			return errors.New("Windows denied game window focus; use an unlocked interactive desktop")
+			return ErrForegroundDenied
 		}
 	}
 	for tap := 0; tap < 2; tap++ {

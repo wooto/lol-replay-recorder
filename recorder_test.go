@@ -191,6 +191,9 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 		if f.mode == "wrong-process" && f.launched {
 			pid = 99
 		}
+		if f.mode == "watch-owner" && f.selectCalls > 0 {
+			pid = 99
+		}
 		encode(map[string]any{"processID": pid})
 	case "/replay/playback":
 		if f.mode == "encoder-clock" && request.Method == "POST" && f.path != "" {

@@ -3,6 +3,7 @@ package recorder
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 )
@@ -21,6 +22,107 @@ func TestFocusWatcherRecoversDuringRecording(t *testing.T) {
 			}
 			if f.selectionWrites != 0 {
 				t.Fatal("selected identity through API")
+			}
+		})
+	}
+}
+
+type temporarilyDeniedDesktop struct {
+	desktop
+	denied int
+	calls  int
+}
+
+func (d *temporarilyDeniedDesktop) selectPlayer(ctx context.Context, pid int, key uint16) error {
+	d.calls++
+	if d.denied > 0 {
+		d.denied--
+		return ErrForegroundDenied
+	}
+	return d.desktop.selectPlayer(ctx, pid, key)
+}
+
+func TestFocusRecoveryRetriesTransientForegroundDenial(t *testing.T) {
+	r, request, f := testRecorder(t, "")
+	f.launched = true
+	d := &temporarilyDeniedDesktop{desktop: r.desktop, denied: 1}
+	r.desktop = d
+	if _, err := r.recoverFocus(context.Background(), 4242, '2', player{SummonerName: "Player#KR1"}, request.Target, 60); err != nil {
+		t.Fatal(err)
+	}
+	if d.calls != 2 || f.selectCalls != 1 {
+		t.Fatalf("calls=%d delivered=%d", d.calls, f.selectCalls)
+	}
+}
+
+func TestFocusRecoveryCancellationDoesNotPressKeys(t *testing.T) {
+	r, request, f := testRecorder(t, "")
+	f.launched = true
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := r.recoverFocus(ctx, 4242, '2', player{}, request.Target, 60); !errors.Is(err, context.Canceled) {
+		t.Fatalf("got %v", err)
+	}
+	if f.selectCalls != 0 || f.cameraControlsSet {
+		t.Fatal("acted after cancellation")
+	}
+}
+
+func TestFocusRecoveryBothTeamSlots(t *testing.T) {
+	for _, key := range []uint16{'1', '2', '3', '4', '5', 'Q', 'W', 'E', 'R', 'T'} {
+		t.Run(string(rune(key)), func(t *testing.T) {
+			r, request, f := testRecorder(t, "")
+			f.launched = true
+			f.expectedSelectionKey = key
+			if _, err := r.recoverFocus(context.Background(), 4242, key, player{SummonerName: "Player#KR1"}, request.Target, 60); err != nil {
+				t.Fatal(err)
+			}
+			if f.selectCalls != 1 || f.selectionWrites != 0 {
+				t.Fatal("did not use the roster slot hotkey")
+			}
+		})
+	}
+}
+
+func TestFocusBudgetSharedSlidingWindow(t *testing.T) {
+	var b focusBudget
+	start := time.Unix(1000, 0)
+	for i := 0; i < 5; i++ {
+		if !b.allow(start.Add(time.Duration(i) * time.Second)) {
+			t.Fatal("blocked within budget")
+		}
+	}
+	if b.allow(start.Add(30 * time.Second)) {
+		t.Fatal("allowed sixth recovery before window expiry")
+	}
+	if !b.allow(start.Add(31 * time.Second)) {
+		t.Fatal("did not replenish expired budget")
+	}
+}
+
+func TestFocusRecoveryRechecksOwnerAfterHotkey(t *testing.T) {
+	r, request, f := testRecorder(t, "watch-owner")
+	f.launched = true
+	_, err := r.recoverFocus(context.Background(), 4242, '2', player{SummonerName: "Player#KR1"}, request.Target, 60)
+	if err == nil || !strings.Contains(err.Error(), "process changed") {
+		t.Fatalf("accepted new replay owner: %v", err)
+	}
+	if f.cameraControlsSet {
+		t.Fatal("wrote camera controls after ownership changed")
+	}
+}
+
+func TestFocusWatcherDeathRespawn(t *testing.T) {
+	for _, mode := range []string{"death-respawn", "respawn-race", "camera-follow-death-ack"} {
+		t.Run(mode, func(t *testing.T) {
+			r, request, f := testRecorder(t, mode)
+			r.config.RecoverFocus = true
+			r.config.LaunchTimeout = 5 * time.Second
+			if _, err := r.RecordFull(context.Background(), request); err != nil {
+				t.Fatal(err)
+			}
+			if !f.verified || !f.closed {
+				t.Fatal("death/respawn did not finish validation")
 			}
 		})
 	}
