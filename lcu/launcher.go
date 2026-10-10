@@ -26,7 +26,7 @@ var launchMu sync.Mutex
 // It requires an idle client and no existing game. The new game is identified
 // through both a process snapshot and Replay API PID; failures close only the
 // uniquely identified new process. Serialize user/manual game launches too.
-func (c *Client) LaunchReplay(ctx context.Context, replay Replay, config LaunchConfig) (recorder.ReplayProcess, error) {
+func (c *Client) LaunchReplay(ctx context.Context, replay Replay, config LaunchConfig) (process recorder.ReplayProcess, launchErr error) {
 	if ctx == nil {
 		return nil, errors.New("context is required")
 	}
@@ -87,16 +87,16 @@ func (c *Client) LaunchReplay(ctx context.Context, replay Replay, config LaunchC
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
-	if err = c.Watch(ctx, replay.GameID); err != nil {
-		return nil, err
-	}
 	var owned recorder.ReplayProcess
 	success := false
 	defer func() {
-		if !success && owned != nil {
-			_ = owned.Close()
+		if !success {
+			launchErr = errors.Join(launchErr, cleanupFailedLaunch(owned, poll))
 		}
 	}()
+	if err = c.Watch(ctx, replay.GameID); err != nil {
+		return nil, err
+	}
 	for {
 		processes, err := gameProcesses()
 		if err != nil {
@@ -134,5 +134,35 @@ func (c *Client) LaunchReplay(ctx context.Context, replay Replay, config LaunchC
 			return nil, ctx.Err()
 		case <-timer.C:
 		}
+	}
+}
+
+// A failed HTTP response does not prove that Watch failed to launch the game.
+// Allow a short independent discovery window even when the caller canceled.
+func cleanupFailedLaunch(owned recorder.ReplayProcess, poll time.Duration) error {
+	if owned != nil {
+		return owned.Close()
+	}
+	deadline := time.Now().Add(time.Second)
+	for {
+		processes, err := gameProcesses()
+		if err != nil {
+			return err
+		}
+		if len(processes) > 1 {
+			return errors.New("failed launch cleanup: multiple game processes; ownership is ambiguous")
+		}
+		for pid := range processes {
+			process, err := openGameProcess(pid)
+			if err != nil {
+				return err
+			}
+			return process.Close()
+		}
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			return nil
+		}
+		time.Sleep(min(poll, remaining))
 	}
 }

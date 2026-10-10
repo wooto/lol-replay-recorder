@@ -27,6 +27,16 @@ func TestOwnedGameHelper(t *testing.T) {
 	}
 }
 func TestLCULaunchOwnsOnlyNewGameProcess(t *testing.T) {
+	testLaunchOwnership(t, false, false)
+}
+func TestLCULaunchCleansGameAfterWatchError(t *testing.T) {
+	testLaunchOwnership(t, true, false)
+}
+func TestLCULaunchCleansGameAfterCancellation(t *testing.T) {
+	testLaunchOwnership(t, true, true)
+}
+func testLaunchOwnership(t *testing.T, watchFailure, cancelWatch bool) {
+	t.Helper()
 	exe, err := os.Executable()
 	if err != nil {
 		t.Fatal(err)
@@ -46,6 +56,7 @@ func TestLCULaunchOwnsOnlyNewGameProcess(t *testing.T) {
 	}
 	var mu sync.Mutex
 	var child *exec.Cmd
+	var launchCancel context.CancelFunc
 	defer func() {
 		mu.Lock()
 		defer mu.Unlock()
@@ -74,7 +85,15 @@ func TestLCULaunchOwnsOnlyNewGameProcess(t *testing.T) {
 				w.WriteHeader(500)
 				return
 			}
-			w.WriteHeader(204)
+			if cancelWatch {
+				launchCancel()
+				time.Sleep(200 * time.Millisecond)
+			}
+			if watchFailure {
+				w.WriteHeader(500)
+			} else {
+				w.WriteHeader(204)
+			}
 		case "/replay/game":
 			if child == nil {
 				w.WriteHeader(404)
@@ -92,8 +111,32 @@ func TestLCULaunchOwnsOnlyNewGameProcess(t *testing.T) {
 	}
 	defer client.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	launchCancel = cancel
 	defer cancel()
 	owned, err := client.LaunchReplay(ctx, lcu.Replay{GameID: 123, Path: replayPath}, lcu.LaunchConfig{ReplayURL: server.URL, PollInterval: time.Millisecond})
+	if watchFailure {
+		if cancelWatch && !errors.Is(err, context.Canceled) {
+			t.Fatalf("cancellation must be preserved: %v", err)
+		}
+		if err == nil || owned != nil {
+			t.Fatal("failed watch must return an error without ownership")
+		}
+		mu.Lock()
+		if child == nil || child.Process == nil {
+			mu.Unlock()
+			t.Fatal("watch did not start fixture game")
+		}
+		process := child.Process
+		mu.Unlock()
+		exited := make(chan struct{})
+		go func() { _, _ = process.Wait(); close(exited) }()
+		select {
+		case <-exited:
+		case <-time.After(time.Second):
+			t.Fatal("game started by failed watch was not cleaned up")
+		}
+		return
+	}
 	if err != nil {
 		t.Fatal(err)
 	}

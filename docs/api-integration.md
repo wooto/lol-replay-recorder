@@ -36,7 +36,10 @@ file, and connects `lcu.Client.LaunchReplay` to `recorder.Config.LaunchReplay`.
 The caller's requested path must match the client-configured replay directory,
 region and game ID. The Windows launcher rejects existing games, identifies a
 single newly started `League of Legends.exe` and confirms its PID through
-`/replay/game`. Its retained process handle closes that process only.
+`/replay/game`. Its retained process handle closes that process only. On a failed watch or
+readiness wait, cleanup independently polls for up to one second for a unique
+new game and propagates cleanup errors. A game appearing after that window or
+an ambiguous simultaneous launch cannot be safely reclaimed.
 Do not start a separate game manually during this operation; simultaneous
 manual launches cannot be reliably attributed to the watch request.
 Errors never become a successful FULL recording.
