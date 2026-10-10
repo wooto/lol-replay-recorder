@@ -219,6 +219,7 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 		return Result{}, ErrBusy
 	}
 	defer r.active.Store(false)
+	defer r.api.close()
 	stage := StageValidate
 	mayHaveOutput := false
 	defer func() {
@@ -320,7 +321,6 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 		if e := process.close(); e != nil {
 			err = errors.Join(err, fmt.Errorf("close owned replay process: %w", e))
 		}
-		r.api.close()
 	}()
 	stage = StageLoad
 	r.emit(stage, 0, 0)

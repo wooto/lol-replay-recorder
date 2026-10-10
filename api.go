@@ -12,8 +12,11 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/wooto/lol-replay-recorder/internal/localhttp"
 )
 
 type replayAPI struct {
@@ -30,10 +33,16 @@ func newAPI(base string, timeout time.Duration, strict bool) (*replayAPI, error)
 		return nil, errors.New("invalid ReplayURL")
 	}
 	ip := net.ParseIP(u.Hostname())
-	if ip == nil || !ip.IsLoopback() || (u.Scheme != "https" && u.Scheme != "http") || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") {
+	if ip == nil || !ip.IsLoopback() || (u.Scheme != "https" && u.Scheme != "http") || u.User != nil || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || (u.Path != "" && u.Path != "/") {
 		return nil, errors.New("ReplayURL must be a numeric loopback HTTP(S) origin without credentials")
 	}
-	transport := http.DefaultTransport.(*http.Transport).Clone()
+	if u.Port() != "" {
+		port, err := strconv.Atoi(u.Port())
+		if err != nil || port < 1 || port > 65535 {
+			return nil, errors.New("invalid ReplayURL port")
+		}
+	}
+	transport := localhttp.CloneTransport()
 	transport.Proxy = nil
 	transport.TLSClientConfig = &tls.Config{MinVersion: tls.VersionTLS12, InsecureSkipVerify: !strict} // #nosec G402 -- validated numeric loopback, isolated transport, redirects disabled.
 	client := &http.Client{Timeout: timeout, Transport: transport, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return errors.New("replay redirects are not allowed") }}

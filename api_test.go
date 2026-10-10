@@ -41,7 +41,7 @@ func TestRiotIDAndTargetSelection(t *testing.T) {
 	}
 }
 func TestLoopbackTransport(t *testing.T) {
-	for _, base := range []string{"https://example.com:2999", "https://localhost:2999", "https://127.0.0.1@evil.example", "https://127.0.0.1:2999/path", "https://127.0.0.1:2999?token=secret"} {
+	for _, base := range []string{"https://example.com:2999", "https://localhost:2999", "https://127.0.0.1@evil.example", "https://127.0.0.1:2999/path", "https://127.0.0.1:2999?token=secret", "https://127.0.0.1:0", "https://127.0.0.1:65536", "https://127.0.0.1:2999?"} {
 		if _, err := newAPI(base, time.Second, false); err == nil {
 			t.Fatalf("accepted origin %q", base)
 		}

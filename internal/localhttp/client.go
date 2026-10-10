@@ -56,7 +56,7 @@ func New(config Config, fallback string, authenticated bool) (*Client, error) {
 			return nil, errors.New("invalid local API port")
 		}
 	}
-	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport := CloneTransport()
 	transport.Proxy = nil
 	transport.TLSClientConfig = &tls.Config{MinVersion: tls.VersionTLS12, InsecureSkipVerify: !config.StrictTLS} // #nosec G402 -- numeric loopback only; isolated transport; redirects disabled.
 	h := &http.Client{Transport: transport, Timeout: 10 * time.Second}
@@ -120,6 +120,9 @@ func (c *Client) Request(ctx context.Context, method, path string, body, out any
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
+		if errors.Is(err, context.DeadlineExceeded) {
+			return fmt.Errorf("local API connection timed out: %w", context.DeadlineExceeded)
+		}
 		return errors.New("local API connection failed")
 	}
 	defer resp.Body.Close()
@@ -128,6 +131,12 @@ func (c *Client) Request(ctx context.Context, method, path string, body, out any
 	}
 	const limit = 8 << 20
 	data, err := io.ReadAll(io.LimitReader(resp.Body, limit+1))
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return fmt.Errorf("local API response timed out: %w", context.DeadlineExceeded)
+	}
 	if err != nil || len(data) > limit {
 		return ErrResponse
 	}
