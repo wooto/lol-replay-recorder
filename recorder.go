@@ -485,12 +485,11 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 		return result, e
 	}
 	const nativePreroll = 5.0
-	// Positive match times are retained in the native output. Start the file
-	// at the requested boundary so preroll does not lengthen interval clips.
-	// The negative five-second workaround is only needed at replay time zero,
-	// where the client otherwise omits its first five seconds.
+	// Explicit intervals start at their requested match-time boundary. The
+	// negative five-second workaround is retained only for RecordFull, whose
+	// zero-based output has been calibrated to need it on the tested client.
 	nativeStart := fromSeconds
-	if fromSeconds == 0 {
+	if full {
 		nativeStart -= nativePreroll
 	}
 	encoderStart := math.Max(0, nativeStart)
