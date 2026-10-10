@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -30,6 +31,8 @@ var (
 	keyboardLayout   = user32.NewProc("GetKeyboardLayout")
 	getAsyncKeyState = user32.NewProc("GetAsyncKeyState")
 	createMutex      = kernel32.NewProc("CreateMutexW")
+	currentThreadID  = kernel32.NewProc("GetCurrentThreadId")
+	attachInput      = user32.NewProc("AttachThreadInput")
 )
 
 type nativeDesktop struct{}
@@ -134,6 +137,8 @@ var findOwnedWindow = syscall.NewCallback(func(hwnd, lparam uintptr) uintptr {
 })
 
 func (nativeDesktop) selectPlayer(ctx context.Context, pid int, key uint16) error {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	windowLookup.Lock()
 	defer windowLookup.Unlock()
 	windowLookup.pid, windowLookup.window = pid, 0
@@ -149,7 +154,25 @@ func (nativeDesktop) selectPlayer(ctx context.Context, pid int, key uint16) erro
 	}
 	foreground, _, _ := getForeground.Call()
 	if foreground != window {
-		return errors.New("Windows denied game window focus; use an unlocked interactive desktop")
+		// Windows may reject a background thread's first activation request.
+		// Temporarily join the foreground input queue on this same desktop,
+		// then detach it before sending any player-slot keys.
+		thread, _, _ := currentThreadID.Call()
+		foregroundThread, _, _ := getWindowPID.Call(foreground, 0)
+		if foregroundThread != 0 && foregroundThread != thread {
+			joined, _, _ := attachInput.Call(thread, foregroundThread, 1)
+			if joined != 0 {
+				setForeground.Call(window)
+				attachInput.Call(thread, foregroundThread, 0)
+			}
+		}
+		if err := wait(ctx, 150*time.Millisecond); err != nil {
+			return err
+		}
+		foreground, _, _ = getForeground.Call()
+		if foreground != window {
+			return errors.New("Windows denied game window focus; use an unlocked interactive desktop")
+		}
 	}
 	for tap := 0; tap < 2; tap++ {
 		if err := ctx.Err(); err != nil {
