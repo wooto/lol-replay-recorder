@@ -21,6 +21,14 @@ go get github.com/wooto/lol-replay-recorder@v0.1.0-alpha.3
 | `recorder` (module root) | Launch a compatible local `.rofl`, follow one player, and capture WebM on Windows amd64 |
 | `observer` | Save opaque observer chunks and keyframes into a custom archive; expose a completed archive through an HTTP handler |
 | `discovery` | Optional Riot Account-v1 / Spectator-v5 lookup and context-aware waiting for an active game; caller supplies the API key |
+| `lcu` | Signed-in League client replay download/watch, match history and Windows owned-process launch |
+| `riotclient` | Riot Client authorization, product sessions, region and explicit product CLI launch |
+| `riotapi` | Riot account, match history/details and current-game APIs; compatible with `discovery` |
+| `liveclient` | Live game, player and event data from the local Live Client Data API |
+| `spectator` | Local Replay API playback and camera control |
+
+See [API integration and TDD/live checks](docs/api-integration.md). To download
+and record through an already signed-in client, use `examples/lcu-record`.
 
 Observer archives are **not `.rofl` files** and cannot be passed to
 `recorder.RecordFull`. The replay handler does not start or authenticate a League
@@ -122,9 +130,10 @@ checks API/process identity and closes only that owned game. The callback must
 not adopt an already running game and must clean up its own failed launches.
 This hook adds no login, replay-download, or LCU dependency to the recording core.
 
-Local `.rofl` downloading, Riot login, player-directory crawling, uploading, and
-transcoding belong to the calling application. Optional active-game lookup is in
-the separate `discovery` package.
+Optional `.rofl` downloading and LCU replay-watch launch are in the separate
+`lcu` package. Riot login, player-directory crawling, uploading and transcoding
+belong to the calling application. Optional account/match/current-game lookup
+is in `riotapi`; the existing `discovery` import remains compatible.
 
 ## Experimental observer archive
 
