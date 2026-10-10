@@ -40,7 +40,7 @@ func TestRecordIntervalCanRepresentKnownFullReplayRange(t *testing.T) {
 	if err != nil {
 		t.Fatalf("full replay interval failed: %v", err)
 	}
-	if result.DurationSeconds != 90 || f.start != 0 || f.end != 90 {
+	if result.DurationSeconds != 90 || f.start != 0.1 || f.end != 90 {
 		t.Fatalf("full interval bounds were not applied: result=%+v start=%v end=%v", result, f.start, f.end)
 	}
 }

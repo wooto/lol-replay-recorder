@@ -17,7 +17,7 @@ var (
 	ErrCameraLock          = errors.New("target camera lock could not be verified")
 	ErrOutputExists        = errors.New("output already exists")
 	ErrClientBusy          = errors.New("a replay client is already running")
-	ErrRecordingIncomplete = errors.New("recording did not cover the full replay")
+	ErrRecordingIncomplete = errors.New("recording did not cover the requested interval")
 	ErrHotkeySettings      = errors.New("spectator hotkey settings could not be verified")
 )
 

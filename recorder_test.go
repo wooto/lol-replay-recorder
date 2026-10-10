@@ -143,7 +143,7 @@ func (v fakeVerifier) verify(_ context.Context, path string, duration float64) e
 		}
 		return validateProbe([]byte(`{"format":{"duration":"30"},"streams":[{"codec_type":"video","nb_read_frames":"900"}],"packets":[{"pts_time":"0","duration_time":"0.033"},{"pts_time":"29.967","duration_time":"0.033"}]}`), duration)
 	}
-	if v.f.mode == "full-interval" && (path != v.f.path || duration != 90 || v.f.start != 0 || v.f.end != 90) {
+	if v.f.mode == "full-interval" && (path != v.f.path || duration != 90 || v.f.start != 0.1 || v.f.end != 90) {
 		return errors.New("full-length interval range or duration was not preserved")
 	}
 	if path != v.f.path || duration != 90 {

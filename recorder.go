@@ -491,6 +491,11 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 	nativeStart := fromSeconds
 	if full {
 		nativeStart -= nativePreroll
+	} else if fromSeconds == 0 && toSeconds > 0.1 {
+		// The client has no champion objects at exact zero. Reuse the warmed
+		// preflight position to avoid its zero-time reload; verify actual packet
+		// bounds against the requested zero-based interval before accepting.
+		nativeStart = 0.1
 	}
 	encoderStart := math.Max(0, nativeStart)
 	seekTime := math.Max(0.1, nativeStart)

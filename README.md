@@ -80,6 +80,10 @@ For example, `RecordInterval(ctx, request, 60, 90)` captures match time 1:00–1
 and returns a 30-second video normalized to timestamps starting at zero. The
 recorder rejects non-finite, negative, empty, reversed, or out-of-replay bounds;
 it still verifies the selected target and the complete requested interval.
+For an explicit interval starting at zero, the tested client requires native
+`startTime=0.1` because champion objects are unavailable at exact zero. The
+output is still accepted only when decoded video packets cover the requested
+zero-based interval.
 
 The output directory must exist and the output file must not exist. Defaults are
 1920×1080 at 60 FPS, normal playback speed, and WebM. The library launches the
