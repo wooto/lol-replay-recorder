@@ -66,6 +66,9 @@ type Recorder struct {
 }
 
 func New(config Config) (*Recorder, error) {
+	if config.ConfigureHotkeys && config.Hotkeys == nil {
+		return nil, errors.New("ConfigureHotkeys requires a Hotkeys settings adapter")
+	}
 	for name, value := range map[string]time.Duration{"poll interval": config.PollInterval, "launch timeout": config.LaunchTimeout, "finalize timeout": config.FinalizeTimeout, "request timeout": config.RequestTimeout} {
 		if value < 0 {
 			return nil, fmt.Errorf("%s cannot be negative", name)
@@ -89,10 +92,8 @@ func New(config Config) (*Recorder, error) {
 	if config.SelectionKeys == [10]uint16{} {
 		config.SelectionKeys = [10]uint16{'1', '2', '3', '4', '5', 'Q', 'W', 'E', 'R', 'T'}
 	}
-	for _, key := range config.SelectionKeys {
-		if key == 0 || key > 0xff {
-			return nil, errors.New("SelectionKeys must contain ten Windows virtual-key codes")
-		}
+	if err := validateSlotKeys(config.SelectionKeys); err != nil {
+		return nil, err
 	}
 	if config.ExtraLaunchArgs != nil {
 		config.ExtraLaunchArgs = append(make([]string, 0, len(config.ExtraLaunchArgs)), config.ExtraLaunchArgs...)
@@ -258,6 +259,42 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 		}
 	} else if existing.PID > 0 {
 		return result, ErrClientBusy
+	}
+	if r.config.Hotkeys != nil {
+		keys, checkErr := r.config.Hotkeys.Read(ctx)
+		if checkErr != nil {
+			return result, errors.Join(ErrHotkeySettings, checkErr)
+		}
+		if checkErr = validateSlotKeys(keys); checkErr != nil {
+			return result, checkErr
+		}
+		if keys != r.config.SelectionKeys {
+			if !r.config.ConfigureHotkeys {
+				return result, fmt.Errorf("%w: effective bindings differ from SelectionKeys", ErrHotkeySettings)
+			}
+			if err = ctx.Err(); err != nil {
+				return result, err
+			}
+			if checkErr = r.config.Hotkeys.Backup(ctx); checkErr != nil {
+				return result, errors.Join(ErrHotkeySettings, fmt.Errorf("back up bindings: %w", checkErr))
+			}
+			if err = ctx.Err(); err != nil {
+				return result, err
+			}
+			if checkErr = r.config.Hotkeys.Apply(ctx, r.config.SelectionKeys); checkErr != nil {
+				return result, errors.Join(ErrHotkeySettings, fmt.Errorf("apply bindings: %w", checkErr))
+			}
+			keys, checkErr = r.config.Hotkeys.Read(ctx)
+			if checkErr != nil {
+				return result, errors.Join(ErrHotkeySettings, checkErr)
+			}
+			if checkErr = validateSlotKeys(keys); checkErr != nil {
+				return result, checkErr
+			}
+			if keys != r.config.SelectionKeys {
+				return result, fmt.Errorf("%w: bindings still differ after applying settings", ErrHotkeySettings)
+			}
+		}
 	}
 	if err = ctx.Err(); err != nil {
 		return result, err

@@ -39,7 +39,10 @@ Windows-only. Nothing depends on OP.GG.
   ```
 - `ffprobe` on PATH, or `Config.ProbeExecutable` set to its executable path.
 - For keyboard fallback, standard spectator player bindings `1–5` and `Q–T`, or explicit
-  `Config.SelectionKeys`. The library does not rewrite game settings.
+  `Config.SelectionKeys`. Optional settings checks/correction use a caller-supplied
+  `Config.Hotkeys` adapter; see [hotkey preflight](docs/hotkey-preflight.md).
+  The game must remain foreground. Fallback translates virtual keys using the game
+  thread's keyboard layout and sends two scan-code taps, each held for 50 ms.
 - No existing game using the local Replay API. The library takes game-window focus.
 
 ## Use

@@ -18,6 +18,7 @@ var (
 	ErrOutputExists        = errors.New("output already exists")
 	ErrClientBusy          = errors.New("a replay client is already running")
 	ErrRecordingIncomplete = errors.New("recording did not cover the full replay")
+	ErrHotkeySettings      = errors.New("spectator hotkey settings could not be verified")
 )
 
 // RiotID identifies a player by their complete game name and tag line.
@@ -73,13 +74,32 @@ type Config struct {
 	FinalizeTimeout time.Duration
 	RequestTimeout  time.Duration
 	// SelectionKeys are Windows virtual-key codes in ORDER then CHAOS team order.
-	// Zero means standard 1–5/Q–T bindings; game settings are never rewritten.
+	// Zero means standard 1–5/Q–T bindings. Changes require ConfigureHotkeys.
 	SelectionKeys [10]uint16
+	// Hotkeys optionally reads effective spectator bindings through the caller's
+	// settings adapter. Without an adapter, settings are not checked or changed.
+	Hotkeys HotkeySettings
+	// ConfigureHotkeys explicitly permits backup and correction of mismatched
+	// bindings. Requires Hotkeys; false performs read-only verification.
+	ConfigureHotkeys bool
 	// StrictTLS requires the endpoint certificate to be trusted by the OS.
 	// Default transport tolerates the game certificate only on numeric loopback.
 	StrictTLS  bool
 	Logger     *slog.Logger
 	OnProgress func(Progress)
+}
+
+// HotkeySettings integrates a supported client/settings source. Read must return
+// effective ORDER then CHAOS player-slot bindings, not guessed defaults. Return
+// an error for unknown, unavailable, or unsupported spectator settings.
+// Backup must durably preserve the original settings before Apply is allowed.
+// Apply must change only the requested spectator bindings and make them effective
+// for the next replay launch. Adapters must honor cancellation and protect their
+// settings from concurrent writers; the recorder never handles client credentials.
+type HotkeySettings interface {
+	Read(context.Context) ([10]uint16, error)
+	Backup(context.Context) error
+	Apply(context.Context, [10]uint16) error
 }
 
 // ReplayProcess is an owned game started by Config.LaunchReplay. Close must
