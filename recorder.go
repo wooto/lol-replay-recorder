@@ -484,19 +484,24 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 	} else if !errors.Is(e, os.ErrNotExist) {
 		return result, e
 	}
+	const nativePreroll = 5.0
+	nativeStart := fromSeconds - nativePreroll
+	encoderStart := math.Max(0, nativeStart)
+	seekTime := math.Max(0.1, nativeStart)
 	stage = StageRecord
 	r.emit(stage, 0, duration)
-	// Keep setup and target verification at the opening frame, then seek to the
-	// requested match time before enabling the native recorder.
-	if fromSeconds > 0 {
-		if err = r.api.request(loadCtx, "POST", "/replay/playback", map[string]any{"time": fromSeconds, "paused": true, "speed": 1}, nil); err != nil {
+	// The current client begins captured video five seconds after startTime.
+	// Seek to that preroll point so recording startup does not rewind the game
+	// after target setup, while output still begins at fromSeconds.
+	if seekTime > 0.25 {
+		if err = r.api.request(loadCtx, "POST", "/replay/playback", map[string]any{"time": seekTime, "paused": true, "speed": 1}, nil); err != nil {
 			return result, err
 		}
 		for {
 			if err = r.api.request(loadCtx, "GET", "/replay/playback", nil, &playback); err != nil {
 				return result, err
 			}
-			if !playback.Seeking && playback.Paused && math.Abs(playback.Time-fromSeconds) <= 0.25 {
+			if !playback.Seeking && playback.Paused && math.Abs(playback.Time-seekTime) <= 0.25 {
 				break
 			}
 			if err = wait(loadCtx, r.config.PollInterval); err != nil {
@@ -520,9 +525,7 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 	// accelerated frame-enforced mode produced shortened videos in live tests.
 	// In the tested client, FPS capture begins five seconds after startTime.
 	// Negative pre-roll initializes capture before game time zero; decoded media
-	// timestamps must still prove the exact 0..length output range.
-	const nativePreroll = 5.0
-	nativeStart := fromSeconds - nativePreroll
+	// timestamps must prove the exact requested duration on a zero-based timeline.
 	options := map[string]any{"recording": true, "path": request.OutputPath, "codec": "webm", "startTime": nativeStart, "endTime": toSeconds, "width": request.Width, "height": request.Height, "framesPerSecond": request.FPS, "enforceFrameRate": false, "replaySpeed": 1}
 	if err = r.api.request(ctx, "POST", "/replay/recording", options, nil); err != nil {
 		return result, err
@@ -584,26 +587,35 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 		if err = r.api.request(recordingCtx, "GET", "/replay/render", nil, &render); err != nil {
 			return result, err
 		}
-		lifecycleReset := follower.requiresLifecycleReset(state.Current)
+		preRoll := state.Current < fromSeconds
 		selectionLocked := locked(render, target, request.Target)
+		if preRoll {
+			// Native pre-roll is before the requested video interval. Keep proving
+			// the target selection, but rebase camera following at the first frame
+			// in the requested interval instead of comparing pre-roll offsets.
+			follower.suspend()
+		}
+		lifecycleReset := follower.requiresLifecycleReset(state.Current)
 		if !cameraPoseValid(render) {
 			return result, fmt.Errorf("%w at %.3fs (camera view changed)", ErrCameraLock, state.Current)
 		}
 		if !cameraInputControlsValid(render) {
 			return result, fmt.Errorf("%w at %.3fs (FPS camera input controls changed)", ErrCameraLock, state.Current)
 		}
-		if selectionLocked && !lifecycleReset && !cameraOffsetMatches(*render.SelectionOffset, expectedCameraOffset) {
+		if !preRoll && selectionLocked && !lifecycleReset && !cameraOffsetMatches(*render.SelectionOffset, expectedCameraOffset) {
 			return result, fmt.Errorf("%w at %.3fs (between-update camera follow offset readback %+v, expected %+v)", ErrCameraLock, state.Current, *render.SelectionOffset, expectedCameraOffset)
 		}
-		if !cameraOffsetWithinRange(render) && !(lifecycleReset && selectionLocked) {
+		if !preRoll && !cameraOffsetWithinRange(render) && !(lifecycleReset && selectionLocked) {
 			return result, fmt.Errorf("%w at %.3fs (camera view changed)", ErrCameraLock, state.Current)
 		}
 		if !locked(render, target, request.Target) {
 			follower.suspend()
-			// Starting the encoder can temporarily remove game objects. Only an
-			// empty selection in the requested interval's first 250 ms may recover;
-			// a different selected player or any later lock loss remains fatal.
-			if state.Current >= fromSeconds && state.Current <= fromSeconds+0.25 && render.SelectionName == "" && time.Now().Before(startDeadline) {
+			// Starting the encoder can temporarily remove game objects. Recover an
+			// empty selection only at native preroll or requested video start; a
+			// different selected player or any later lock loss remains fatal.
+			atEncoderStart := state.Current >= encoderStart && state.Current <= encoderStart+0.25
+			atVideoStart := state.Current >= fromSeconds && state.Current <= fromSeconds+0.25
+			if (atEncoderStart || atVideoStart) && render.SelectionName == "" && time.Now().Before(startDeadline) {
 				if err = r.api.request(recordingCtx, "POST", "/replay/render", map[string]any{"selectionName": selectionName, "cameraAttached": true}, nil); err != nil {
 					return result, err
 				}
@@ -611,6 +623,9 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 					return result, err
 				}
 				continue
+			}
+			if preRoll {
+				return result, fmt.Errorf("%w during interval pre-roll at %.3fs", ErrCameraLock, state.Current)
 			}
 			// A dead champion can disappear as a selectable object. Keep the
 			// verified constant selection track through death only when live data
@@ -650,7 +665,7 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 			}
 		}
 		if locked(render, target, request.Target) {
-			if *state.Recording {
+			if *state.Recording && !preRoll {
 				lifecycleReset = follower.requiresLifecycleReset(state.Current)
 				if !lifecycleReset && !cameraOffsetMatches(*render.SelectionOffset, expectedCameraOffset) {
 					return result, fmt.Errorf("%w at %.3fs (between-update camera follow offset readback %+v, expected %+v)", ErrCameraLock, state.Current, *render.SelectionOffset, expectedCameraOffset)

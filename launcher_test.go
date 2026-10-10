@@ -27,8 +27,10 @@ func TestRecordIntervalRebasesCameraAndCapturesOnlyRequestedMatchTime(t *testing
 	if !f.selected || !f.verified || !f.closed {
 		t.Fatalf("interval recording skipped target verification or process cleanup: %+v", f)
 	}
-	if len(f.followOffsets) != 0 {
-		t.Fatalf("camera follower reused its time-zero offset after the interval seek: %+v", f.followOffsets)
+	for _, offset := range f.followOffsets {
+		if !cameraOffsetMatches(offset, baseCameraOffset) {
+			t.Fatalf("camera follower reused its preroll offset at the interval boundary: %+v", f.followOffsets)
+		}
 	}
 }
 

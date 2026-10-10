@@ -376,6 +376,10 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 			if f.mode == "interval-camera-jump" && f.playbackTime >= 60 {
 				targetX += 200
 			}
+			if f.mode == "interval-camera-jump" && f.playbackTime >= 55 && f.playbackTime < 60 {
+				f.selectionOffset = cameraVector{X: 3.557, Y: 1492.266, Z: -1029.867}
+				camera["selectionOffset"] = f.selectionOffset
+			}
 			camera["cameraPosition"] = cameraVector{X: targetX + f.selectionOffset.X, Y: 100 + f.selectionOffset.Y, Z: 5000 + f.selectionOffset.Z}
 		}
 		if f.mode == "camera-profile-ignored" {
@@ -496,9 +500,16 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 			return
 		}
 		active := f.ticks <= 3
+		if f.mode == "interval-camera-jump" {
+			active = f.ticks <= 4
+		}
 		current := float64(f.ticks) * 30
-		if f.mode == "interval" || f.mode == "interval-camera-jump" {
+		if f.mode == "interval" {
 			current = f.playbackTime + float64(f.ticks)*10
+		}
+		if f.mode == "interval-camera-jump" {
+			current = 55 + float64(f.ticks)*1.3
+			f.playbackTime = current
 		}
 		if !active {
 			current = f.end
