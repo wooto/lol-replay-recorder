@@ -138,7 +138,7 @@ func (v fakeVerifier) verify(_ context.Context, path string, duration float64) e
 		return ErrRecordingIncomplete
 	}
 	if v.f.mode == "interval" || v.f.mode == "interval-camera-jump" {
-		if path != v.f.path || duration != 30 || v.f.start != 55 || v.f.end != 90 {
+		if path != v.f.path || duration != 30 || v.f.start != 60 || v.f.end != 90 {
 			return errors.New("interval range or duration was not preserved")
 		}
 		return validateProbe([]byte(`{"format":{"duration":"30"},"streams":[{"codec_type":"video","nb_read_frames":"900"}],"packets":[{"pts_time":"0","duration_time":"0.033"},{"pts_time":"29.967","duration_time":"0.033"}]}`), duration)
@@ -376,10 +376,6 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 			if f.mode == "interval-camera-jump" && f.playbackTime >= 60 {
 				targetX += 200
 			}
-			if f.mode == "interval-camera-jump" && f.playbackTime >= 55 && f.playbackTime < 60 {
-				f.selectionOffset = cameraVector{X: 3.557, Y: 1492.266, Z: -1029.867}
-				camera["selectionOffset"] = f.selectionOffset
-			}
 			camera["cameraPosition"] = cameraVector{X: targetX + f.selectionOffset.X, Y: 100 + f.selectionOffset.Y, Z: 5000 + f.selectionOffset.Z}
 		}
 		if f.mode == "camera-profile-ignored" {
@@ -508,7 +504,7 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 			current = f.playbackTime + float64(f.ticks)*10
 		}
 		if f.mode == "interval-camera-jump" {
-			current = 55 + float64(f.ticks)*1.3
+			current = 60 + float64(f.ticks)*1.3
 			f.playbackTime = current
 		}
 		if !active {

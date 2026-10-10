@@ -21,7 +21,7 @@ func TestRecordIntervalRebasesCameraAndCapturesOnlyRequestedMatchTime(t *testing
 	if err != nil {
 		t.Fatalf("short interval recording failed: %v", err)
 	}
-	if result.DurationSeconds != 30 || f.start != 55 || f.end != 90 || f.playbackTime != 90 {
+	if result.DurationSeconds != 30 || f.start != 60 || f.end != 90 || f.playbackTime != 90 {
 		t.Fatalf("interval bounds were not applied: result=%+v start=%v end=%v playback=%v", result, f.start, f.end, f.playbackTime)
 	}
 	if !f.selected || !f.verified || !f.closed {

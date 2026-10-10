@@ -485,14 +485,20 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 		return result, e
 	}
 	const nativePreroll = 5.0
-	nativeStart := fromSeconds - nativePreroll
+	// Positive match times are retained in the native output. Start the file
+	// at the requested boundary so preroll does not lengthen interval clips.
+	// The negative five-second workaround is only needed at replay time zero,
+	// where the client otherwise omits its first five seconds.
+	nativeStart := fromSeconds
+	if fromSeconds == 0 {
+		nativeStart -= nativePreroll
+	}
 	encoderStart := math.Max(0, nativeStart)
 	seekTime := math.Max(0.1, nativeStart)
 	stage = StageRecord
 	r.emit(stage, 0, duration)
-	// The current client begins captured video five seconds after startTime.
-	// Seek to that preroll point so recording startup does not rewind the game
-	// after target setup, while output still begins at fromSeconds.
+	// Seek to the native output start so recording startup does not rewind the
+	// game after target setup.
 	if seekTime > 0.25 {
 		if err = r.api.request(loadCtx, "POST", "/replay/playback", map[string]any{"time": seekTime, "paused": true, "speed": 1}, nil); err != nil {
 			return result, err
