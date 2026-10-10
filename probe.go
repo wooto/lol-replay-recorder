@@ -102,6 +102,7 @@ func validateProbeReader(r io.Reader, length float64) error {
 
 	var containerDuration string
 	var hasFormat, hasPackets, hasStreams, hasVideoFrames bool
+	var videoFrames int64
 	firstPTS, lastPacketEnd := math.Inf(1), math.Inf(-1)
 	seen := map[string]bool{}
 	for decoder.More() {
@@ -152,8 +153,9 @@ func validateProbeReader(r io.Reader, length float64) error {
 					return fmt.Errorf("ffprobe response: %w", err)
 				}
 				if stream.Type == "video" {
-					if frames, parseErr := strconv.ParseInt(stream.Frames, 10, 64); parseErr == nil && frames > 0 {
-						hasVideoFrames = true
+					if frames, parseErr := strconv.ParseInt(stream.Frames, 10, 64); parseErr == nil {
+						videoFrames = frames
+						hasVideoFrames = frames > 0
 					}
 				}
 			}
@@ -177,7 +179,7 @@ func validateProbeReader(r io.Reader, length float64) error {
 				duration, durationErr := strconv.ParseFloat(packet.Duration, 64)
 				packetEnd := pts + duration
 				if ptsErr != nil || durationErr != nil || math.IsNaN(pts) || math.IsInf(pts, 0) || !finitePositive(duration) || math.IsNaN(packetEnd) || math.IsInf(packetEnd, 0) {
-					return ErrRecordingIncomplete
+					return fmt.Errorf("%w: invalid packet timing pts=%q duration=%q", ErrRecordingIncomplete, packet.PTS, packet.Duration)
 				}
 				firstPTS = math.Min(firstPTS, pts)
 				lastPacketEnd = math.Max(lastPacketEnd, packetEnd)
@@ -197,22 +199,22 @@ func validateProbeReader(r io.Reader, length float64) error {
 		return err
 	}
 	if !hasFormat || !hasStreams || !hasPackets {
-		return ErrRecordingIncomplete
+		return fmt.Errorf("%w: ffprobe sections format=%t streams=%t packets=%t", ErrRecordingIncomplete, hasFormat, hasStreams, hasPackets)
 	}
 
 	duration, err := strconv.ParseFloat(containerDuration, 64)
 	if err != nil || !finitePositive(duration) || math.Abs(duration-length) > math.Max(1, length*0.005) {
-		return ErrRecordingIncomplete
+		return fmt.Errorf("%w: container duration=%q requested=%.3fs", ErrRecordingIncomplete, containerDuration, length)
 	}
 	// Audio can retain the requested length after the video ends early. Check
 	// video packet timestamps, not frame count/FPS: native WebM is variable-rate.
 	if math.Abs(firstPTS) > 0.25 || math.Abs(lastPacketEnd-length) > 0.5 {
-		return ErrRecordingIncomplete
+		return fmt.Errorf("%w: video packet bounds firstPTS=%.6fs lastEnd=%.6fs requested=%.3fs", ErrRecordingIncomplete, firstPTS, lastPacketEnd, length)
 	}
 	if hasVideoFrames {
 		return nil
 	}
-	return errors.New("output has no decodable video frames")
+	return fmt.Errorf("output has no decodable video frames (ffprobe count=%d)", videoFrames)
 }
 
 func expectProbeDelimiter(decoder *json.Decoder, expected json.Delim) error {

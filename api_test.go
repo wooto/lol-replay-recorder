@@ -114,4 +114,8 @@ func TestProbeRejectsPartialOrUndecodableVideo(t *testing.T) {
 	if err := validateProbe([]byte(`{"format":{"duration":"90.1"},"streams":[{"codec_type":"video","nb_read_frames":"5400"}],"packets":[{"pts_time":"0","duration_time":"0.017"},{"pts_time":"89.983","duration_time":"0.017"}]}`), 90); err != nil {
 		t.Fatal(err)
 	}
+	shortVideo := validateProbe([]byte(`{"format":{"duration":"90"},"streams":[{"codec_type":"video","nb_read_frames":"480"}],"packets":[{"pts_time":"0.047","duration_time":"0.033"},{"pts_time":"7.827","duration_time":"0.033"}]}`), 90)
+	if !errors.Is(shortVideo, ErrRecordingIncomplete) || !strings.Contains(shortVideo.Error(), "firstPTS=0.047000s lastEnd=7.860000s") {
+		t.Fatalf("short video should report its measured packet bounds: %v", shortVideo)
+	}
 }

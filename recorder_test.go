@@ -38,46 +38,46 @@ func TestConnectionRefusedFromClosedLocalListener(t *testing.T) {
 }
 
 type fixture struct {
-	roster                     []map[string]any
-	expectedSelectionKey       uint16
-	cameraProfile              bool
-	cameraLockX                bool
-	cameraLockY                bool
-	cameraLockZ                bool
-	cameraMoveSpeed            float64
-	cameraLookSpeed            float64
-	cameraControlsSet          bool
-	cameraTrack                bool
-	cameraOffsetTrack          bool
-	followOffsets              []cameraVector
-	selectionOffset            cameraVector
-	pendingOffset              *cameraVector
-	pendingOffsetReads         int
-	pendingSequenceOffset      *cameraVector
-	pendingSequenceOffsetReads int
-	deathAckPending            bool
-	deathAckPostIgnored        bool
-	deathAckRenderReads        int
-	deathAckLockedRead         bool
-	deathAckStaleOffset        bool
-	deathAckInitial            cameraVector
-	deathAckCommanded          cameraVector
-	deathAckEmptySeen          bool
-	deathAckDeathSeen          bool
-	deathAckDeathClock         float64
-	deathAckReacquired         bool
-	enforced                   bool
-	restored                   bool
-	sequence                   []struct {
-		Time  float64 `json:"time"`
-		Value string  `json:"value"`
-	}
+	roster                                        []map[string]any
+	expectedSelectionKey                          uint16
+	cameraProfile                                 bool
+	cameraLockX                                   bool
+	cameraLockY                                   bool
+	cameraLockZ                                   bool
+	cameraMoveSpeed                               float64
+	cameraLookSpeed                               float64
+	cameraControlsSet                             bool
+	cameraTrack                                   bool
+	selectionWrites                               int
+	selectionTrackWrites                          int
+	selectCalls                                   int
+	cameraOffsetTrack                             bool
+	followOffsets                                 []cameraVector
+	selectionOffset                               cameraVector
+	pendingOffset                                 *cameraVector
+	pendingOffsetReads                            int
+	pendingSequenceOffset                         *cameraVector
+	pendingSequenceOffsetReads                    int
+	deathAckPending                               bool
+	deathAckPostIgnored                           bool
+	deathAckRenderReads                           int
+	deathAckLockedRead                            bool
+	deathAckStaleOffset                           bool
+	deathAckInitial                               cameraVector
+	deathAckCommanded                             cameraVector
+	deathAckEmptySeen                             bool
+	deathAckDeathSeen                             bool
+	deathAckDeathClock                            float64
+	deathAckReacquired                            bool
+	enforced                                      bool
+	restored                                      bool
 	mu                                            sync.Mutex
 	launched, selected, closed, stopped, verified bool
 	mode                                          string
 	ticks                                         int
 	path                                          string
 	start, end                                    float64
+	playbackTime                                  float64
 }
 type fakeDesktop struct{ f *fixture }
 type fakeProcess struct{ f *fixture }
@@ -107,7 +107,11 @@ func (d fakeDesktop) selectPlayer(_ context.Context, _ int, key uint16) error {
 	if key != expected {
 		return fmt.Errorf("wrong player key %d", key)
 	}
+	d.f.selectCalls++
 	d.f.selected = true
+	if (d.f.mode == "respawn-race" || d.f.mode == "camera-follow-death-ack") && d.f.ticks == 2 {
+		d.f.restored = true
+	}
 	return nil
 }
 
@@ -135,6 +139,15 @@ func (v fakeVerifier) verify(_ context.Context, path string, duration float64) e
 	}
 	if v.f.mode == "corrupt" {
 		return ErrRecordingIncomplete
+	}
+	if v.f.mode == "interval" || v.f.mode == "interval-camera-jump" {
+		if path != v.f.path || duration != 30 || v.f.start != 60 || v.f.end != 90 {
+			return errors.New("interval range or duration was not preserved")
+		}
+		return validateProbe([]byte(`{"format":{"duration":"30"},"streams":[{"codec_type":"video","nb_read_frames":"900"}],"packets":[{"pts_time":"0","duration_time":"0.033"},{"pts_time":"29.967","duration_time":"0.033"}]}`), duration)
+	}
+	if v.f.mode == "full-interval" && (path != v.f.path || duration != 90 || v.f.start != 0.1 || v.f.end != 90) {
+		return errors.New("full-length interval range or duration was not preserved")
 	}
 	if path != v.f.path || duration != 90 {
 		return errors.New("incorrect output passed to verifier")
@@ -176,11 +189,26 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 			http.Error(w, "encoder owns playback clock", http.StatusConflict)
 			return
 		}
+		if request.Method == "POST" {
+			var body struct {
+				Time   *float64 `json:"time"`
+				Paused *bool    `json:"paused"`
+			}
+			if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+				http.Error(w, "bad request", 400)
+				return
+			}
+			if body.Time != nil {
+				f.playbackTime = *body.Time
+			}
+			encode(map[string]any{})
+			return
+		}
 		length := 90
 		if f.mode == "load-timeout" {
 			length = 0
 		}
-		current := 0
+		current := f.playbackTime
 		if (f.mode == "reset-on-complete" || f.mode == "reset-lost-lock") && f.ticks >= 4 {
 			current = 90
 		}
@@ -271,24 +299,8 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 				encode(map[string]any{})
 				return
 			}
-			if f.mode == "ignored-api" {
-				encode(map[string]any{})
-				return
-			}
-			if f.mode == "api-selection" || f.mode == "respawn-race" || f.mode == "camera-follow-death-ack" {
-				var body struct {
-					Name string `json:"selectionName"`
-				}
-				data, _ := json.Marshal(raw)
-				if err := json.Unmarshal(data, &body); err != nil {
-					t := "invalid selection"
-					http.Error(w, t, 400)
-					return
-				}
-				f.selected = body.Name == "Player#KR1"
-				if f.mode == "respawn-race" && f.ticks == 2 {
-					f.restored = true
-				}
+			if raw["selectionName"] != nil {
+				f.selectionWrites++
 				encode(map[string]any{})
 				return
 			}
@@ -324,7 +336,7 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 		if f.mode == "death-respawn" && f.ticks == 2 {
 			name = ""
 		}
-		if f.mode == "camera-follow-death-ack" && f.ticks == 2 {
+		if f.mode == "camera-follow-death-ack" && f.ticks == 2 && !f.restored {
 			name = ""
 		}
 		if f.ticks == 2 {
@@ -347,7 +359,11 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 			cameraPosition := cameraVector{X: targetX + f.selectionOffset.X, Y: 100 + f.selectionOffset.Y, Z: 5000 + f.selectionOffset.Z}
 			camera["cameraPosition"] = cameraPosition
 		} else {
-			camera["cameraPosition"] = cameraVector{X: 5000 + f.selectionOffset.X, Y: 100 + f.selectionOffset.Y, Z: 5000 + f.selectionOffset.Z}
+			targetX := 5000.0
+			if f.mode == "interval-camera-jump" && f.playbackTime >= 60 {
+				targetX += 200
+			}
+			camera["cameraPosition"] = cameraVector{X: targetX + f.selectionOffset.X, Y: 100 + f.selectionOffset.Y, Z: 5000 + f.selectionOffset.Z}
 		}
 		if f.mode == "camera-profile-ignored" {
 			delete(camera, "selectionOffset")
@@ -409,9 +425,9 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 			http.Error(w, "invalid sequence", 400)
 			return
 		}
-		f.sequence = body.Selection
 		f.cameraOffsetTrack = len(body.Offset) == 2
-		f.cameraTrack = len(body.Selection) == 2 && len(body.Rotation) == 2 && body.Rotation[0].Value.Y == 56 && body.Rotation[1].Value.Y == 56
+		f.selectionTrackWrites += len(body.Selection)
+		f.cameraTrack = len(body.Rotation) == 2 && body.Rotation[0].Value.Y == 56 && body.Rotation[1].Value.Y == 56
 		if len(body.Offset) == 2 {
 			endpoint := body.Offset[1].Value
 			switch {
@@ -467,9 +483,25 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 			return
 		}
 		active := f.ticks <= 3
+		if f.mode == "interval-camera-jump" {
+			active = f.ticks <= 4
+		}
 		current := float64(f.ticks) * 30
+		if f.mode == "interval" {
+			current = f.playbackTime + float64(f.ticks)*10
+		}
+		if f.mode == "interval-camera-jump" {
+			current = 60 + float64(f.ticks)*1.3
+			f.playbackTime = current
+		}
 		if !active {
-			current = 90
+			current = f.end
+			if f.mode != "interval" && f.mode != "interval-camera-jump" {
+				current = 90
+			}
+			if f.mode == "interval" || f.mode == "interval-camera-jump" {
+				f.playbackTime = f.end
+			}
 		}
 		if f.mode == "never-started" {
 			active = false
@@ -498,7 +530,7 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 			return
 		}
 		if !active && f.mode == "native-complete" {
-			encode(map[string]any{"recording": false, "path": path, "currentTime": 90, "startTime": f.start, "endTime": -1})
+			encode(map[string]any{"recording": false, "path": path, "currentTime": f.end, "startTime": f.start, "endTime": -1})
 			return
 		}
 		encode(map[string]any{"recording": active, "path": path, "startTime": f.start, "endTime": f.end, "currentTime": current})
@@ -564,7 +596,7 @@ func TestRecordFullSelectsPlayerByOrderWithinTeam(t *testing.T) {
 		{"blue-third-interleaved", []string{"ORDER", "CHAOS", "ORDER", "CHAOS", "ORDER"}, 4, '3'},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
-			r, request, f := testRecorder(t, "ignored-api")
+			r, request, f := testRecorder(t, "")
 			f.expectedSelectionKey = scenario.key
 			for i, team := range scenario.teams {
 				id := fmt.Sprintf("Other%d#KR1", i)

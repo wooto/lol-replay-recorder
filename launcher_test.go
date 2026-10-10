@@ -3,6 +3,7 @@ package recorder
 import (
 	"context"
 	"errors"
+	"math"
 	"testing"
 	"time"
 )
@@ -11,6 +12,48 @@ func TestFullRecordingKeepsCameraAboveTargetAcrossEncoderSeeks(t *testing.T) {
 	r, request, _ := testRecorder(t, "camera-offset")
 	if _, err := r.RecordFull(context.Background(), request); err != nil {
 		t.Fatalf("selected player must retain an elevated camera and normal angle through the full recording: %v", err)
+	}
+}
+
+func TestRecordIntervalRebasesCameraAndCapturesOnlyRequestedMatchTime(t *testing.T) {
+	r, request, f := testRecorder(t, "interval-camera-jump")
+	result, err := r.RecordInterval(context.Background(), request, 60, 90)
+	if err != nil {
+		t.Fatalf("short interval recording failed: %v", err)
+	}
+	if result.DurationSeconds != 30 || f.start != 60 || f.end != 90 || f.playbackTime != 90 {
+		t.Fatalf("interval bounds were not applied: result=%+v start=%v end=%v playback=%v", result, f.start, f.end, f.playbackTime)
+	}
+	if !f.selected || !f.verified || !f.closed {
+		t.Fatalf("interval recording skipped target verification or process cleanup: %+v", f)
+	}
+	for _, offset := range f.followOffsets {
+		if !cameraOffsetMatches(offset, baseCameraOffset) {
+			t.Fatalf("camera follower reused its preroll offset at the interval boundary: %+v", f.followOffsets)
+		}
+	}
+}
+
+func TestRecordIntervalCanRepresentKnownFullReplayRange(t *testing.T) {
+	r, request, f := testRecorder(t, "full-interval")
+	result, err := r.RecordInterval(context.Background(), request, 0, 90)
+	if err != nil {
+		t.Fatalf("full replay interval failed: %v", err)
+	}
+	if result.DurationSeconds != 90 || f.start != 0.1 || f.end != 90 {
+		t.Fatalf("full interval bounds were not applied: result=%+v start=%v end=%v", result, f.start, f.end)
+	}
+}
+
+func TestRecordIntervalRejectsInvalidBoundsBeforeLaunching(t *testing.T) {
+	for _, bounds := range [][2]float64{{-1, 1}, {1, 1}, {2, 1}, {0, math.NaN()}, {0, math.Inf(1)}} {
+		r, request, f := testRecorder(t, "")
+		if _, err := r.RecordInterval(context.Background(), request, bounds[0], bounds[1]); err == nil {
+			t.Fatalf("accepted interval %v", bounds)
+		}
+		if f.launched {
+			t.Fatalf("launched client for invalid interval %v", bounds)
+		}
 	}
 }
 
@@ -35,8 +78,8 @@ func TestFullRecordingNaturallyFollowsMovingTarget(t *testing.T) {
 	if !lagged {
 		t.Fatal("camera stayed rigidly attached instead of easing behind the moving target")
 	}
-	if !f.cameraTrack || !f.cameraOffsetTrack {
-		t.Fatal("camera sequence must keep selection and rotation while updating its dynamic offset track")
+	if !f.cameraTrack || !f.cameraOffsetTrack || f.selectionWrites != 0 || f.selectionTrackWrites != 0 {
+		t.Fatal("camera sequence must preserve rotation/follow tracks without writing target selection")
 	}
 }
 
@@ -48,8 +91,8 @@ func TestCameraFollowSequenceWorksWhenRenderOffsetUpdatesAreIgnored(t *testing.T
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if !f.cameraTrack || !f.cameraOffsetTrack || len(f.followOffsets) == 0 {
-		t.Fatal("camera follow did not update the selection-offset sequence while preserving target and rotation tracks")
+	if !f.cameraTrack || !f.cameraOffsetTrack || len(f.followOffsets) == 0 || f.selectionWrites != 0 || f.selectionTrackWrites != 0 {
+		t.Fatal("camera follow did not update offset/rotation tracks without writing target selection")
 	}
 }
 
@@ -77,7 +120,7 @@ func TestDelayedCameraFollowOffsetEchoIsAcknowledged(t *testing.T) {
 	}
 }
 
-func TestDeathDuringCameraOffsetAcknowledgementUsesBoundedRecovery(t *testing.T) {
+func TestCameraOffsetAcknowledgementLossUsesVerifiedHotkeyReacquisition(t *testing.T) {
 	r, request, f := testRecorder(t, "camera-follow-death-ack")
 	r.config.PollInterval = 50 * time.Millisecond
 	if _, err := r.RecordFull(context.Background(), request); err != nil {
@@ -85,9 +128,9 @@ func TestDeathDuringCameraOffsetAcknowledgementUsesBoundedRecovery(t *testing.T)
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if !f.deathAckPostIgnored || !f.deathAckLockedRead || !f.deathAckStaleOffset || f.deathAckRenderReads != 2 || !f.deathAckEmptySeen || !f.deathAckDeathSeen || f.deathAckDeathClock != 60 || !f.deathAckReacquired || !f.verified {
-		t.Fatalf("death during offset acknowledgement did not use the bounded death/reacquisition path: ignoredPOST=%t lockedRead=%t staleOffset=%t reads=%d empty=%t death=%t liveClock=%v reacquired=%t verified=%t",
-			f.deathAckPostIgnored, f.deathAckLockedRead, f.deathAckStaleOffset, f.deathAckRenderReads, f.deathAckEmptySeen, f.deathAckDeathSeen, f.deathAckDeathClock, f.deathAckReacquired, f.verified)
+	if !f.deathAckPostIgnored || !f.deathAckLockedRead || !f.deathAckStaleOffset || f.deathAckRenderReads != 2 || !f.deathAckEmptySeen || f.deathAckDeathSeen || !f.deathAckReacquired || !f.verified || f.selectCalls < 2 {
+		t.Fatalf("camera offset acknowledgement loss did not reacquire and verify the target through its slot hotkey: ignoredPOST=%t lockedRead=%t staleOffset=%t reads=%d empty=%t death=%t reacquired=%t selects=%d verified=%t",
+			f.deathAckPostIgnored, f.deathAckLockedRead, f.deathAckStaleOffset, f.deathAckRenderReads, f.deathAckEmptySeen, f.deathAckDeathSeen, f.deathAckReacquired, f.selectCalls, f.verified)
 	}
 }
 
@@ -188,8 +231,8 @@ func (p exportedFakeProcess) PID() int     { return p.pid() }
 func (p exportedFakeProcess) Exited() bool { return p.exited() }
 func (p exportedFakeProcess) Close() error { return p.close() }
 
-func TestCustomLauncherUsesOwnedProcessAndSelectionSequence(t *testing.T) {
-	r, request, f := testRecorder(t, "api-selection")
+func TestCustomLauncherUsesOwnedProcessAndHotkeySelection(t *testing.T) {
+	r, request, f := testRecorder(t, "")
 	called := false
 	r.config.LaunchReplay = func(ctx context.Context, path string) (ReplayProcess, error) {
 		if path != request.ReplayPath {
@@ -207,8 +250,8 @@ func TestCustomLauncherUsesOwnedProcessAndSelectionSequence(t *testing.T) {
 	if !called || !f.closed || !f.verified {
 		t.Fatal("custom process was not recorded, verified, and closed")
 	}
-	if len(f.sequence) != 2 || f.sequence[0].Time != 0 || f.sequence[1].Time != 90 || f.sequence[0].Value != "Player#KR1" || f.sequence[1].Value != "Player#KR1" {
-		t.Fatalf("missing constant verified selection: %+v", f.sequence)
+	if f.selectCalls == 0 || f.selectionWrites != 0 || f.selectionTrackWrites != 0 {
+		t.Fatalf("selection must use focused spectator hotkeys with readback only: keys=%d renderWrites=%d sequenceWrites=%d", f.selectCalls, f.selectionWrites, f.selectionTrackWrites)
 	}
 }
 
@@ -230,10 +273,13 @@ func TestNilCustomProcessRejected(t *testing.T) {
 	}
 }
 
-func TestSelectionFallsBackWhenRenderAPIAcceptsButIgnoresName(t *testing.T) {
-	r, request, _ := testRecorder(t, "ignored-api")
+func TestTargetSelectionUsesFocusedHotkeyAndReadback(t *testing.T) {
+	r, request, f := testRecorder(t, "")
 	if _, err := r.RecordFull(context.Background(), request); err != nil {
-		t.Fatalf("verified keyboard fallback should record even when name POST is ignored: %v", err)
+		t.Fatalf("verified spectator hotkey selection should record: %v", err)
+	}
+	if f.selectCalls == 0 || !f.selected || f.selectionWrites != 0 || f.selectionTrackWrites != 0 {
+		t.Fatalf("target must be selected by hotkey then read back, without API selection writes: %+v", f)
 	}
 }
 

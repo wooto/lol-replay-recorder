@@ -215,6 +215,20 @@ func validateRequest(request Request) (Request, error) {
 // and verifies the output. It closes only the game process it launched. On failure
 // it returns no successful Result and preserves partial output for inspection.
 func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Result, err error) {
+	return r.record(ctx, request, 0, 0, true)
+}
+
+// RecordInterval records the replay match-time interval [fromSeconds,toSeconds].
+// The output is normalized to a zero-based timeline and must cover the full
+// requested duration. Bounds are checked against the loaded replay.
+func (r *Recorder) RecordInterval(ctx context.Context, request Request, fromSeconds, toSeconds float64) (result Result, err error) {
+	if math.IsNaN(fromSeconds) || math.IsInf(fromSeconds, 0) || math.IsNaN(toSeconds) || math.IsInf(toSeconds, 0) || fromSeconds < 0 || toSeconds <= fromSeconds {
+		return Result{}, errors.New("recording interval requires finite bounds with 0 <= from < to")
+	}
+	return r.record(ctx, request, fromSeconds, toSeconds, false)
+}
+
+func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toSeconds float64, full bool) (result Result, err error) {
 	if !r.active.CompareAndSwap(false, true) {
 		return Result{}, ErrBusy
 	}
@@ -359,8 +373,8 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 	}
 	// Seek and pause before targeting, so no game content is lost during setup.
 	// At exact time zero current clients have not created selectable champions.
-	// Prepare within the existing 250 ms start tolerance; recording still requests
-	// a five-second native pre-roll and validates the decoded video from zero.
+	// Prepare at 0.1; full capture and explicit intervals each apply their
+	// calibrated native start and validate decoded video against the requested range.
 	if err = r.api.request(loadCtx, "POST", "/replay/playback", map[string]any{"time": 0.1, "paused": true, "speed": 1}, nil); err != nil {
 		return result, err
 	}
@@ -379,6 +393,15 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 	if !finitePositive(length) || length > 24*60*60 {
 		return result, errors.New("invalid replay length")
 	}
+	if full {
+		fromSeconds, toSeconds = 0, length
+	} else if toSeconds > length {
+		return result, errors.New("recording interval exceeds replay length")
+	}
+	duration := toSeconds - fromSeconds
+	if !finitePositive(duration) {
+		return result, errors.New("invalid recording interval duration")
+	}
 	index, target, e := locateTarget(players.Players, request.Target)
 	if e != nil {
 		return result, e
@@ -386,40 +409,22 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 	stage = StageTarget
 	r.emit(stage, 0, length)
 	verified := false
-	selectionName := ""
 	for attempt := 0; attempt < 5; attempt++ {
-		name := request.Target.String()
-		if target.NameUnique {
-			name = request.Target.GameName
-		}
-		// Prefer the documented Replay API over keyboard bindings. A short name is
-		// safe only after proving it identifies exactly one participant.
-		// A successful POST can still ignore an unsupported selection name.
-		// After its first unverified result, try the configured player bindings.
-		if attempt > 0 || r.api.request(loadCtx, "POST", "/replay/render", map[string]any{"selectionName": name, "cameraAttached": true}, nil) != nil {
-			if err = r.desktop.selectPlayer(loadCtx, process.pid(), r.config.SelectionKeys[index]); err != nil {
-				return result, err
-			}
-		}
-		if err = wait(loadCtx, r.config.PollInterval); err != nil {
-			return result, err
-		}
 		var render renderState
-		if err = r.api.request(loadCtx, "GET", "/replay/render", nil, &render); err != nil {
+		render, err = r.selectTarget(loadCtx, process.pid(), r.config.SelectionKeys[index])
+		if err != nil {
 			return result, err
 		}
 		if locked(render, target, request.Target) {
 			verified = true
-			selectionName = render.SelectionName
 			break
 		}
 	}
 	if !verified {
 		return result, ErrCameraLock
 	}
-	// A selection track places the camera at the object's origin unless an
-	// offset is supplied. Use the client's normal 56-degree elevated view;
-	// name/attachment alone can otherwise report success from inside terrain.
+	// Use the client's normal 56-degree elevated view; hotkey selection and
+	// attachment alone can otherwise report success from inside terrain.
 	offset := baseCameraOffset
 	rotation := baseCameraRotation
 	if err = r.api.request(loadCtx, "POST", "/replay/render", map[string]any{
@@ -429,13 +434,9 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 	}, nil); err != nil {
 		return result, err
 	}
-	// Keep the player and camera angle on the render sequence. The offset stays
-	// dynamic so the camera can ease behind the selected player.
+	// Preserve the camera angle on the render sequence. Target selection remains
+	// a hotkey action, with identity verified through render readback.
 	if err = r.api.request(loadCtx, "POST", "/replay/sequence", map[string]any{
-		"selectionName": []map[string]any{
-			{"time": 0, "value": selectionName, "blend": "snap"},
-			{"time": length, "value": selectionName, "blend": "snap"},
-		},
 		"selectionOffset": []cameraVector{},
 		"cameraRotation": []map[string]any{
 			{"time": 0, "value": rotation, "blend": "snap"},
@@ -461,8 +462,45 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 	} else if !errors.Is(e, os.ErrNotExist) {
 		return result, e
 	}
+	const nativePreroll = 5.0
+	// Explicit intervals start at their requested match-time boundary. The
+	// negative five-second workaround is retained only for RecordFull, whose
+	// zero-based output has been calibrated to need it on the tested client.
+	nativeStart := fromSeconds
+	if full {
+		nativeStart -= nativePreroll
+	} else if fromSeconds == 0 && toSeconds > 0.1 {
+		// The client has no champion objects at exact zero. Reuse the warmed
+		// preflight position to avoid its zero-time reload; verify actual packet
+		// bounds against the requested zero-based interval before accepting.
+		nativeStart = 0.1
+	}
+	encoderStart := math.Max(0, nativeStart)
+	seekTime := math.Max(0.1, nativeStart)
 	stage = StageRecord
-	r.emit(stage, 0, length)
+	r.emit(stage, 0, duration)
+	// Seek to the native output start so recording startup does not rewind the
+	// game after target setup.
+	if seekTime > 0.25 {
+		if err = r.api.request(loadCtx, "POST", "/replay/playback", map[string]any{"time": seekTime, "paused": true, "speed": 1}, nil); err != nil {
+			return result, err
+		}
+		for {
+			if err = r.api.request(loadCtx, "GET", "/replay/playback", nil, &playback); err != nil {
+				return result, err
+			}
+			if !playback.Seeking && playback.Paused && math.Abs(playback.Time-seekTime) <= 0.25 {
+				break
+			}
+			if err = wait(loadCtx, r.config.PollInterval); err != nil {
+				return result, err
+			}
+		}
+		// Seeking changes the selected target's world position independently
+		// of the time-zero camera sample used during setup. Rebase following on
+		// the first verified render frame at the interval start.
+		follower.suspend()
+	}
 	start := time.Now().UTC()
 	// League Director starts playback before enabling the recorder. Afterwards
 	// the encoder owns playback timing to enforce the requested frame rate.
@@ -475,13 +513,12 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 	// accelerated frame-enforced mode produced shortened videos in live tests.
 	// In the tested client, FPS capture begins five seconds after startTime.
 	// Negative pre-roll initializes capture before game time zero; decoded media
-	// timestamps must still prove the exact 0..length output range.
-	const nativeStart = -5.0
-	options := map[string]any{"recording": true, "path": request.OutputPath, "codec": "webm", "startTime": nativeStart, "endTime": length, "width": request.Width, "height": request.Height, "framesPerSecond": request.FPS, "enforceFrameRate": false, "replaySpeed": 1}
+	// timestamps must prove the exact requested duration on a zero-based timeline.
+	options := map[string]any{"recording": true, "path": request.OutputPath, "codec": "webm", "startTime": nativeStart, "endTime": toSeconds, "width": request.Width, "height": request.Height, "framesPerSecond": request.FPS, "enforceFrameRate": false, "replaySpeed": 1}
 	if err = r.api.request(ctx, "POST", "/replay/recording", options, nil); err != nil {
 		return result, err
 	}
-	recordingCtx, cancelRecord := context.WithTimeout(ctx, time.Duration(length*1.5*float64(time.Second))+2*time.Minute)
+	recordingCtx, cancelRecord := context.WithTimeout(ctx, time.Duration(duration*1.5*float64(time.Second))+2*time.Minute)
 	defer cancelRecord()
 	started := false
 	startDeadline := time.Now().Add(15 * time.Second)
@@ -512,15 +549,15 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 			if err = r.api.request(recordingCtx, "GET", "/replay/playback", nil, &ended); err != nil {
 				return result, err
 			}
-			if ended.Seeking || !finitePositive(ended.Time) || !finitePositive(ended.Length) || math.Abs(ended.Length-length) > 0.5 || ended.Time < length-0.5 {
+			if ended.Seeking || !finitePositive(ended.Time) || !finitePositive(ended.Length) || math.Abs(ended.Length-length) > 0.5 || ended.Time < toSeconds-0.5 {
 				return result, ErrRecordingIncomplete
 			}
-			state.Path, state.Start, state.End, state.Current = request.OutputPath, nativeStart, length, length
+			state.Path, state.Start, state.End, state.Current = request.OutputPath, nativeStart, toSeconds, toSeconds
 		}
 		// Native completion retains the path/current time but resets endTime to
 		// -1. Preserve all normal path, start, target-camera and media checks.
-		if started && !*state.Recording && state.End == -1 && state.Current >= length-0.5 {
-			state.End = length
+		if started && !*state.Recording && state.End == -1 && state.Current >= toSeconds-0.5 {
+			state.End = toSeconds
 		}
 		if !started && !*state.Recording && state.Path == "" {
 			if time.Now().After(startDeadline) {
@@ -531,58 +568,71 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 			}
 			continue
 		}
-		if state.Path == "" || !samePath(state.Path, request.OutputPath) || math.Abs(state.Start-nativeStart) > 0.25 || math.Abs(state.End-length) > 0.5 || !finitePositive(state.End) || math.IsNaN(state.Current) || math.IsInf(state.Current, 0) {
+		if state.Path == "" || !samePath(state.Path, request.OutputPath) || math.Abs(state.Start-nativeStart) > 0.25 || math.Abs(state.End-toSeconds) > 0.5 || !finitePositive(state.End) || math.IsNaN(state.Current) || math.IsInf(state.Current, 0) {
 			return result, errors.New("Replay API recording range or output differs from request")
 		}
 		var render renderState
 		if err = r.api.request(recordingCtx, "GET", "/replay/render", nil, &render); err != nil {
 			return result, err
 		}
-		lifecycleReset := follower.requiresLifecycleReset(state.Current)
+		preRoll := state.Current < fromSeconds
 		selectionLocked := locked(render, target, request.Target)
+		if preRoll {
+			// Native pre-roll is before the requested video interval. Keep proving
+			// the target selection, but rebase camera following at the first frame
+			// in the requested interval instead of comparing pre-roll offsets.
+			follower.suspend()
+		}
+		lifecycleReset := follower.requiresLifecycleReset(state.Current)
 		if !cameraPoseValid(render) {
 			return result, fmt.Errorf("%w at %.3fs (camera view changed)", ErrCameraLock, state.Current)
 		}
 		if !cameraInputControlsValid(render) {
 			return result, fmt.Errorf("%w at %.3fs (FPS camera input controls changed)", ErrCameraLock, state.Current)
 		}
-		if selectionLocked && !lifecycleReset && !cameraOffsetMatches(*render.SelectionOffset, expectedCameraOffset) {
+		if !preRoll && selectionLocked && !lifecycleReset && !cameraOffsetMatches(*render.SelectionOffset, expectedCameraOffset) {
 			return result, fmt.Errorf("%w at %.3fs (between-update camera follow offset readback %+v, expected %+v)", ErrCameraLock, state.Current, *render.SelectionOffset, expectedCameraOffset)
 		}
-		if !cameraOffsetWithinRange(render) && !(lifecycleReset && selectionLocked) {
+		if !preRoll && !cameraOffsetWithinRange(render) && !(lifecycleReset && selectionLocked) {
 			return result, fmt.Errorf("%w at %.3fs (camera view changed)", ErrCameraLock, state.Current)
 		}
 		if !locked(render, target, request.Target) {
 			follower.suspend()
-			// Starting the encoder seeks back to zero, temporarily removing game
-			// objects. Only an empty selection in the initial 250 ms may recover;
-			// a different selected player or any later lock loss remains fatal.
-			if state.Current >= 0 && state.Current <= 0.25 && render.SelectionName == "" && time.Now().Before(startDeadline) {
-				if err = r.api.request(recordingCtx, "POST", "/replay/render", map[string]any{"selectionName": selectionName, "cameraAttached": true}, nil); err != nil {
+			// Starting the encoder can temporarily remove game objects. Recover an
+			// empty selection only at native preroll or requested video start; a
+			// different selected player or any later lock loss remains fatal.
+			// Native playback clocks can report a frame just before the configured
+			// boundary. Treat that narrow edge as startup so transient empty target
+			// selection can be restored before the requested interval begins.
+			atEncoderStart := state.Current >= encoderStart-0.25 && state.Current <= encoderStart+0.25
+			atVideoStart := state.Current >= fromSeconds-0.25 && state.Current <= fromSeconds+0.25
+			if (atEncoderStart || atVideoStart) && render.SelectionName == "" && time.Now().Before(startDeadline) {
+				render, err = r.selectTarget(recordingCtx, process.pid(), r.config.SelectionKeys[index])
+				if err != nil {
 					return result, err
 				}
-				if err = wait(recordingCtx, 50*time.Millisecond); err != nil {
-					return result, err
+				if !locked(render, target, request.Target) && render.SelectionName != "" {
+					return result, fmt.Errorf("%w at startup (selected %q)", ErrCameraLock, render.SelectionName)
 				}
 				continue
 			}
-			// A dead champion can disappear as a selectable object. Keep the
-			// verified constant selection track through death only when live data
-			// explicitly confirms this same target is dead and no other object was
-			// selected. The next alive frame must again prove the camera lock.
+			if preRoll {
+				return result, fmt.Errorf("%w during interval pre-roll at %.3fs", ErrCameraLock, state.Current)
+			}
+			// A dead champion can disappear as a selectable object. Permit an
+			// empty attached selection only when live data confirms this same target
+			// is dead. The next alive frame must verify hotkey selection again.
 			var live gameData
 			if render.SelectionName != "" || render.CameraAttached == nil || !*render.CameraAttached {
 				return result, fmt.Errorf("%w at %.3fs (selection %q)", ErrCameraLock, state.Current, render.SelectionName)
 			}
-			// Render and live-data snapshots can straddle a respawn. Try one
-			// bounded re-selection of the already verified target and read it back.
-			if r.api.request(recordingCtx, "POST", "/replay/render", map[string]any{"selectionName": selectionName, "cameraAttached": true}, nil) == nil {
-				if err = wait(recordingCtx, 50*time.Millisecond); err != nil {
-					return result, err
-				}
-				if err = r.api.request(recordingCtx, "GET", "/replay/render", nil, &render); err != nil {
-					return result, err
-				}
+			// Render and live-data snapshots can straddle a respawn. Re-focus the
+			// owned game and select the same team slot through its verified hotkey.
+			render, err = r.selectTarget(recordingCtx, process.pid(), r.config.SelectionKeys[index])
+			if err != nil {
+				return result, err
+			}
+			if locked(render, target, request.Target) {
 				lifecycleReset = follower.requiresLifecycleReset(state.Current)
 				selectionLocked = locked(render, target, request.Target)
 				if !cameraPoseValid(render) || !cameraInputControlsValid(render) || (!cameraOffsetWithinRange(render) && !(lifecycleReset && selectionLocked)) {
@@ -604,7 +654,7 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 			}
 		}
 		if locked(render, target, request.Target) {
-			if *state.Recording {
+			if *state.Recording && !preRoll {
 				lifecycleReset = follower.requiresLifecycleReset(state.Current)
 				if !lifecycleReset && !cameraOffsetMatches(*render.SelectionOffset, expectedCameraOffset) {
 					return result, fmt.Errorf("%w at %.3fs (between-update camera follow offset readback %+v, expected %+v)", ErrCameraLock, state.Current, *render.SelectionOffset, expectedCameraOffset)
@@ -618,10 +668,6 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 					if length-state.Current >= cameraTransitionDuration {
 						endpointTime := state.Current + cameraTransitionDuration
 						sequence := map[string]any{
-							"selectionName": []map[string]any{
-								{"time": 0, "value": selectionName, "blend": "snap"},
-								{"time": length, "value": selectionName, "blend": "snap"},
-							},
 							"selectionOffset": []map[string]any{
 								{"time": state.Current, "value": *render.SelectionOffset, "blend": "linear"},
 								{"time": endpointTime, "value": offset, "blend": "linear"},
@@ -662,17 +708,17 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 			started = true
 		}
 		if time.Since(lastProgressAt) >= r.config.PollInterval || !*state.Recording {
-			r.emit(stage, state.Current, length)
+			r.emit(stage, max(state.Current-fromSeconds, 0), duration)
 			lastProgressAt = time.Now()
 		}
 		if !*state.Recording {
-			if !started && state.Current < length-0.5 && time.Now().Before(startDeadline) {
+			if !started && state.Current < toSeconds-0.5 && time.Now().Before(startDeadline) {
 				if err = wait(recordingCtx, r.config.PollInterval); err != nil {
 					return result, err
 				}
 				continue
 			}
-			if !started || state.Current < length-0.5 {
+			if !started || state.Current < toSeconds-0.5 {
 				return result, ErrRecordingIncomplete
 			}
 			break
@@ -683,7 +729,7 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 	}
 	attemptedRecording = false
 	stage = StageFinalize
-	r.emit(stage, length, length)
+	r.emit(stage, duration, duration)
 	finalizeCtx, cancelFinalize := context.WithTimeout(ctx, r.config.FinalizeTimeout)
 	defer cancelFinalize()
 	var lastSize int64
@@ -708,10 +754,27 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 			return result, err
 		}
 	}
-	if err = r.verifier.verify(finalizeCtx, request.OutputPath, length); err != nil {
+	if err = r.verifier.verify(finalizeCtx, request.OutputPath, duration); err != nil {
 		return result, err
 	}
-	return Result{Path: request.OutputPath, Target: request.Target, DurationSeconds: length, StartedAt: start, FinishedAt: time.Now().UTC()}, nil
+	return Result{Path: request.OutputPath, Target: request.Target, DurationSeconds: duration, StartedAt: start, FinishedAt: time.Now().UTC()}, nil
+}
+
+// selectTarget focuses the owned replay window, selects a spectator slot using
+// its configured hotkey, and returns the Replay API readback for identity
+// verification. Selection itself is deliberately never written through the API.
+func (r *Recorder) selectTarget(ctx context.Context, pid int, key uint16) (renderState, error) {
+	if err := r.desktop.selectPlayer(ctx, pid, key); err != nil {
+		return renderState{}, err
+	}
+	if err := wait(ctx, r.config.PollInterval); err != nil {
+		return renderState{}, err
+	}
+	var render renderState
+	if err := r.api.request(ctx, "GET", "/replay/render", nil, &render); err != nil {
+		return renderState{}, err
+	}
+	return render, nil
 }
 
 // Winsock returns WSAECONNREFUSED (10061), whereas syscall.ECONNREFUSED

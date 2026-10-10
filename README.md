@@ -46,11 +46,13 @@ Windows-only. Nothing depends on OP.GG.
   EnableReplayApi=1
   ```
 - `ffprobe` on PATH, or `Config.ProbeExecutable` set to its executable path.
-- For keyboard fallback, standard spectator player bindings `1–5` and `Q–T`, or explicit
+- For spectator selection, standard player-slot bindings `1–5` and `Q–T`, or explicit
   `Config.SelectionKeys`. Optional settings checks/correction use a caller-supplied
   `Config.Hotkeys` adapter; see [hotkey preflight](docs/hotkey-preflight.md).
-  The game must remain foreground. Fallback translates virtual keys using the game
-  thread's keyboard layout and sends two scan-code taps, each held for 50 ms.
+  The recorder focuses its owned game window, sends the team-slot key, and checks the
+  selected Riot ID through Replay API readback. It translates virtual keys using
+  the game thread's keyboard layout and sends two scan-code taps, each held for
+  50 ms.
 - No existing game using the local Replay API. The library takes game-window focus.
 
 ## Use
@@ -75,14 +77,26 @@ if err != nil { return err }
 fmt.Println(result.Path)
 ```
 
+For a shorter capture, use `RecordInterval` with absolute replay match times.
+For example, `RecordInterval(ctx, request, 60, 90)` captures match time 1:00–1:30
+and returns a 30-second video normalized to timestamps starting at zero. The
+recorder rejects non-finite, negative, empty, reversed, or out-of-replay bounds;
+it still verifies the selected target and the complete requested interval.
+For an explicit interval starting at zero, the tested client requires native
+`startTime=0.1` because champion objects are unavailable at exact zero. The
+output is still accepted only when decoded video packets cover the requested
+zero-based interval.
+
 The output directory must exist and the output file must not exist. Defaults are
 1920×1080 at 60 FPS, normal playback speed, and WebM. The library launches the
 replay, pauses and prepares at 0.1 seconds (champion objects are absent at exact
 zero on the tested client), identifies the complete Riot ID, selects through
-Replay API with verified keyboard fallback, and verifies camera attachment.
-A constant selection-name sequence reapplies the target through encoder seeks
-and respawns. An elevated camera height and 56-degree angle are also maintained
-and verified: attachment alone can otherwise leave the camera inside terrain.
+the configured team-slot hotkey, and verifies the selected Riot ID and camera
+attachment through Replay API readback. It reselects the same slot through the
+focused game window when startup or a respawn clears selection. It does not write
+target selection names through the Replay API. An elevated camera height and
+56-degree angle are maintained and verified: attachment alone can otherwise
+leave the camera inside terrain.
 Horizontal following is eased instead of rigidly centering the player: the
 recorder reads camera position and attachment offset through Replay API and
 uses short linear keyframes as the selected player moves. Native readback
