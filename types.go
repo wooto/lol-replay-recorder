@@ -87,6 +87,9 @@ type Config struct {
 	StrictTLS  bool
 	Logger     *slog.Logger
 	OnProgress func(Progress)
+	// RecoverFocus enables bounded hotkey recovery when selection/camera drifts.
+	// Recovery runs in the capture loop; no competing camera writer is spawned.
+	RecoverFocus bool
 }
 
 // HotkeySettings integrates a supported client/settings source. Read must return

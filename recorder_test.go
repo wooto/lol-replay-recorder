@@ -110,6 +110,9 @@ func (d fakeDesktop) selectPlayer(_ context.Context, _ int, key uint16) error {
 	}
 	d.f.selectCalls++
 	d.f.selected = true
+	if strings.HasPrefix(d.f.mode, "watch-") && d.f.ticks >= 2 {
+		d.f.restored = true
+	}
 	if (d.f.mode == "respawn-race" || d.f.mode == "camera-follow-death-ack") && d.f.ticks == 2 {
 		d.f.restored = true
 	}
@@ -331,10 +334,23 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 			}
 		}
 		attached := f.selected && f.mode != "target-lock" && !(f.mode == "lost-lock" && f.ticks >= 2)
+		if f.mode == "watch-ack" && f.ticks >= 2 && f.cameraTrack && !f.restored {
+			attached = false
+		}
 		if f.mode == "reset-lost-lock" && f.ticks >= 4 {
 			attached = false
 		}
 		name := "Player#KR1"
+		if strings.HasPrefix(f.mode, "watch-") && f.ticks >= 2 && !f.restored {
+			switch f.mode {
+			case "watch-wrong-player":
+				name = "Other#KR1"
+			case "watch-empty":
+				name = ""
+			case "watch-detached":
+				attached = false
+			}
+		}
 		if f.mode == "respawn-race" && f.ticks == 2 && !f.restored {
 			name = ""
 		}
@@ -359,7 +375,7 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 			"cameraMode": "fps", "selectionOffset": f.selectionOffset, "cameraRotation": map[string]any{"x": 0, "y": 56, "z": 0},
 			"cameraLockX": f.cameraLockX, "cameraLockY": f.cameraLockY, "cameraLockZ": f.cameraLockZ,
 			"cameraMoveSpeed": f.cameraMoveSpeed, "cameraLookSpeed": f.cameraLookSpeed}
-		if f.mode == "camera-follow" || f.mode == "camera-follow-ignored-offset" || f.mode == "camera-follow-sequence-ignored" || f.mode == "camera-follow-delayed-offset" || f.mode == "camera-follow-death-ack" {
+		if f.mode == "watch-ack" || f.mode == "camera-follow" || f.mode == "camera-follow-ignored-offset" || f.mode == "camera-follow-sequence-ignored" || f.mode == "camera-follow-delayed-offset" || f.mode == "camera-follow-death-ack" {
 			targetX := 5000 + float64(f.ticks)*20
 			cameraPosition := cameraVector{X: targetX + f.selectionOffset.X, Y: 100 + f.selectionOffset.Y, Z: 5000 + f.selectionOffset.Z}
 			camera["cameraPosition"] = cameraPosition
@@ -372,6 +388,9 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 		}
 		if f.mode == "camera-profile-ignored" {
 			delete(camera, "selectionOffset")
+		}
+		if f.mode == "watch-position" && f.ticks >= 2 && !f.restored {
+			camera["selectionOffset"] = cameraVector{X: 600, Y: baseCameraOffset.Y, Z: baseCameraOffset.Z}
 		}
 		if f.mode == "camera-position-missing" {
 			delete(camera, "cameraPosition")

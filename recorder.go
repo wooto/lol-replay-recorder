@@ -421,7 +421,12 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 		}
 	}
 	if !verified {
-		return result, ErrCameraLock
+		if !r.config.RecoverFocus {
+			return result, ErrCameraLock
+		}
+		if _, err = r.recoverFocus(loadCtx, process.pid(), r.config.SelectionKeys[index], target, request.Target, playback.Time); err != nil {
+			return result, err
+		}
 	}
 	// Use the client's normal 56-degree elevated view; hotkey selection and
 	// attachment alone can otherwise report success from inside terrain.
@@ -501,6 +506,43 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 		// the first verified render frame at the interval start.
 		follower.suspend()
 	}
+	if r.config.RecoverFocus {
+		// A seek can destroy the selected champion object. Repair after the
+		// final seek, not only before it, and allow the UI/camera to settle.
+		settleCtx, cancel := context.WithTimeout(loadCtx, 25*time.Second)
+		stable := time.Time{}
+		for {
+			var render renderState
+			if err = r.api.request(settleCtx, "GET", "/replay/playback", nil, &playback); err != nil {
+				cancel()
+				return result, err
+			}
+			if err = r.api.request(settleCtx, "GET", "/replay/render", nil, &render); err != nil {
+				cancel()
+				return result, err
+			}
+			if playback.Seeking || !playback.Paused || math.Abs(playback.Time-seekTime) > 0.25 {
+				stable = time.Time{}
+			} else if focusDrift(render, target, request.Target, baseCameraOffset, true) {
+				stable = time.Time{}
+				if _, err = r.recoverFocus(settleCtx, process.pid(), r.config.SelectionKeys[index], target, request.Target, playback.Time); err != nil {
+					cancel()
+					return result, err
+				}
+			} else if stable.IsZero() {
+				stable = time.Now()
+			} else if time.Since(stable) >= 2*time.Second {
+				break
+			}
+			if err = wait(settleCtx, 100*time.Millisecond); err != nil {
+				cancel()
+				return result, err
+			}
+		}
+		cancel()
+		follower.suspend()
+		expectedCameraOffset = baseCameraOffset
+	}
 	start := time.Now().UTC()
 	// League Director starts playback before enabling the recorder. Afterwards
 	// the encoder owns playback timing to enforce the requested frame rate.
@@ -523,6 +565,7 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 	started := false
 	startDeadline := time.Now().Add(15 * time.Second)
 	lastProgressAt := time.Now()
+	var focusRecoveries []time.Time
 	for {
 		if process.exited() {
 			return result, errors.New("game exited during recording")
@@ -584,6 +627,36 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 			follower.suspend()
 		}
 		lifecycleReset := follower.requiresLifecycleReset(state.Current)
+		// Keep watching throughout capture. Correct a changed player, detached
+		// camera, invalid view or unexpected offset before the fatal checks below.
+		// Empty selections retain the existing death/respawn handling.
+		confirmedDeath := false
+		if r.config.RecoverFocus && render.SelectionName == "" {
+			var live gameData
+			if err = r.api.request(recordingCtx, "GET", "/liveclientdata/allgamedata", nil, &live); err != nil {
+				return result, err
+			}
+			_, current, e := locateTarget(live.Players, request.Target)
+			confirmedDeath = e == nil && current.Team == target.Team && current.IsDead != nil && *current.IsDead && live.Clock.Time != nil && finiteNumber(*live.Clock.Time) && math.Abs(*live.Clock.Time-state.Current) <= 2
+		}
+		if r.config.RecoverFocus && !confirmedDeath && focusDrift(render, target, request.Target, expectedCameraOffset, !preRoll && !lifecycleReset) {
+			now := time.Now()
+			for len(focusRecoveries) > 0 && now.Sub(focusRecoveries[0]) > 30*time.Second {
+				focusRecoveries = focusRecoveries[1:]
+			}
+			if len(focusRecoveries) >= 5 {
+				return result, fmt.Errorf("%w: focus unstable after five recoveries in 30 seconds", ErrCameraLock)
+			}
+			focusRecoveries = append(focusRecoveries, now)
+			render, err = r.recoverFocus(recordingCtx, process.pid(), r.config.SelectionKeys[index], target, request.Target, state.Current)
+			if err != nil {
+				return result, err
+			}
+			follower.suspend()
+			expectedCameraOffset = baseCameraOffset
+			selectionLocked = locked(render, target, request.Target)
+			lifecycleReset = true
+		}
 		if !cameraPoseValid(render) {
 			return result, fmt.Errorf("%w at %.3fs (camera view changed)", ErrCameraLock, state.Current)
 		}
@@ -683,6 +756,22 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 						var selectionLost bool
 						_, selectionLost, err = r.waitForCameraOffset(recordingCtx, target, request.Target, offset, state.Current)
 						if err != nil {
+							if r.config.RecoverFocus && errors.Is(err, ErrCameraLock) {
+								now := time.Now()
+								for len(focusRecoveries) > 0 && now.Sub(focusRecoveries[0]) > 30*time.Second {
+									focusRecoveries = focusRecoveries[1:]
+								}
+								if len(focusRecoveries) >= 5 {
+									return result, err
+								}
+								focusRecoveries = append(focusRecoveries, now)
+								if _, err = r.recoverFocus(recordingCtx, process.pid(), r.config.SelectionKeys[index], target, request.Target, state.Current); err != nil {
+									return result, err
+								}
+								follower.suspend()
+								expectedCameraOffset = baseCameraOffset
+								continue
+							}
 							return result, err
 						}
 						if selectionLost {
