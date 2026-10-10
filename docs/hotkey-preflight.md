@@ -38,8 +38,13 @@ No built-in LCU or config-file adapter is shipped. The installed patch's LCU
 input settings/schema did not expose spectator slot bindings, so unsupported
 event names are not written to `input.ini`. Without an adapter, the prior
 unchecked settings behavior remains. This integration is not a claim that native
-spectator focus or synthetic input works on the installed client: the current
-Windows computer-use input still fails and native player focus remains unverified.
+spectator focus or synthetic input works on every client. On patch
+16.20.824.8524, the Go fallback selected the expected player using held scan-code
+taps after the game was foregrounded; virtual-key taps did not select the player
+in the comparison. Foreground acquisition can still be denied by Windows.
+Native observer readback reported `cameraAttached=false` despite selection, so
+the existing attachment check still rejects that path. This does not establish
+successful FULL recording with the native spectator camera.
 The existing FPS camera/recording behavior is unchanged.
 
 Riot documents double presses of `1–5` / `Q,W,E,R,T` for champion locking in its
@@ -55,7 +60,8 @@ team separately, so interleaved blue/red arrays do not shift the player's slot.
 It does not sort by champion or player name, or identify players by champion
 alone. RecordFull regression tests cover both teams and interleaved rosters.
 
-In the currently opened replay, target `헬로지토#HELLO` played Kayle and appeared
-first in CHAOS, yielding default key `Q`. This is a roster-to-key inference,
-not proof that the game accepted the key or that a remapped key remains `Q`.
-Native camera/target readback must still establish successful focusing.
+In the tested replay, target `헬로지토#HELLO` played Kayle and appeared first in
+CHAOS, yielding default key `Q`. Held scan-code taps selected that player while
+Replay API render writes were deliberately blocked. This verifies the mapping
+for this replay and client, not a remapped client's bindings. Native follow and
+FULL recording still require separate acceptance checks.

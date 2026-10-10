@@ -17,16 +17,18 @@ import (
 )
 
 var (
-	user32        = syscall.NewLazyDLL("user32.dll")
-	kernel32      = syscall.NewLazyDLL("kernel32.dll")
-	enumWindows   = user32.NewProc("EnumWindows")
-	getWindowPID  = user32.NewProc("GetWindowThreadProcessId")
-	isVisible     = user32.NewProc("IsWindowVisible")
-	showWindow    = user32.NewProc("ShowWindow")
-	setForeground = user32.NewProc("SetForegroundWindow")
-	getForeground = user32.NewProc("GetForegroundWindow")
-	sendInput     = user32.NewProc("SendInput")
-	createMutex   = kernel32.NewProc("CreateMutexW")
+	user32         = syscall.NewLazyDLL("user32.dll")
+	kernel32       = syscall.NewLazyDLL("kernel32.dll")
+	enumWindows    = user32.NewProc("EnumWindows")
+	getWindowPID   = user32.NewProc("GetWindowThreadProcessId")
+	isVisible      = user32.NewProc("IsWindowVisible")
+	showWindow     = user32.NewProc("ShowWindow")
+	setForeground  = user32.NewProc("SetForegroundWindow")
+	getForeground  = user32.NewProc("GetForegroundWindow")
+	sendInput      = user32.NewProc("SendInput")
+	mapVirtualKey  = user32.NewProc("MapVirtualKeyExW")
+	keyboardLayout = user32.NewProc("GetKeyboardLayout")
+	createMutex    = kernel32.NewProc("CreateMutexW")
 )
 
 type nativeDesktop struct{}
@@ -156,10 +158,53 @@ func (nativeDesktop) selectPlayer(ctx context.Context, pid int, key uint16) erro
 		if foreground != window {
 			return errors.New("game lost foreground before camera selection")
 		}
-		inputs := [2]keyboardInput{{Type: 1, VK: key}, {Type: 1, VK: key, Flags: 2}}
-		inserted, _, err := sendInput.Call(2, uintptr(unsafe.Pointer(&inputs[0])), unsafe.Sizeof(inputs[0]))
-		if inserted != 2 {
-			return fmt.Errorf("Windows camera input was not delivered (%d/2): %v", inserted, err)
+		var ownerPID uint32
+		thread, _, _ := getWindowPID.Call(window, uintptr(unsafe.Pointer(&ownerPID)))
+		if thread == 0 || int(ownerPID) != pid {
+			return errors.New("game window ownership changed before camera selection")
+		}
+		layout, _, _ := keyboardLayout.Call(thread)
+		scan, _, _ := mapVirtualKey.Call(uintptr(key), 4, layout)
+		if scan == 0 {
+			return errors.New("camera key has no scan code")
+		}
+		flags := uint32(8) // KEYEVENTF_SCANCODE
+		switch scan >> 8 {
+		case 0:
+		case 0xe0:
+			flags |= 1 // KEYEVENTF_EXTENDEDKEY
+		default:
+			return errors.New("camera key has an unsupported scan-code prefix")
+		}
+		input := keyboardInput{Type: 1, Scan: uint16(scan & 0xff), Flags: flags}
+		foreground, _, _ = getForeground.Call()
+		if foreground != window {
+			return errors.New("game lost foreground before camera keydown")
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		inserted, _, err := sendInput.Call(1, uintptr(unsafe.Pointer(&input)), unsafe.Sizeof(input))
+		if inserted != 1 {
+			return fmt.Errorf("Windows camera keydown was not delivered (%d/1): %v", inserted, err)
+		}
+		holdErr := wait(ctx, 50*time.Millisecond)
+		// Always release our key, including cancellation during the hold.
+		input.Flags = flags | 2
+		inserted, _, err = sendInput.Call(1, uintptr(unsafe.Pointer(&input)), unsafe.Sizeof(input))
+		if inserted != 1 {
+			// One bounded cleanup retry, even when the recording was cancelled.
+			inserted, _, err = sendInput.Call(1, uintptr(unsafe.Pointer(&input)), unsafe.Sizeof(input))
+		}
+		if inserted != 1 {
+			return errors.Join(holdErr, fmt.Errorf("Windows camera keyup was not delivered (%d/1): %v", inserted, err))
+		}
+		if holdErr != nil {
+			return holdErr
+		}
+		foreground, _, _ = getForeground.Call()
+		if foreground != window {
+			return errors.New("game lost foreground during camera keypress")
 		}
 		if err := wait(ctx, 100*time.Millisecond); err != nil {
 			return err
