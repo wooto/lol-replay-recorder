@@ -164,16 +164,28 @@ func TestFocusRecoveryRechecksOwnerAfterHotkey(t *testing.T) {
 }
 
 func TestFocusWatcherDeathRespawn(t *testing.T) {
-	for _, mode := range []string{"death-respawn", "respawn-race", "camera-follow-death-ack"} {
+	for _, mode := range []string{"death-respawn", "respawn-race", "camera-follow-death-ack", "death-detach-recover", "death-detach-pending"} {
 		t.Run(mode, func(t *testing.T) {
 			r, request, f := testRecorder(t, mode)
 			r.config.RecoverFocus = true
 			r.config.LaunchTimeout = 5 * time.Second
+			pending := false
+			r.config.OnProgress = func(p Progress) {
+				if p.Stage == Stage("refocus-pending") {
+					pending = true
+				}
+			}
 			if _, err := r.RecordFull(context.Background(), request); err != nil {
 				t.Fatal(err)
 			}
 			if !f.verified || !f.closed {
 				t.Fatal("death/respawn did not finish validation")
+			}
+			if mode == "death-detach-pending" && !pending {
+				t.Fatal("unattached dead target was not reported as pending")
+			}
+			if mode == "death-detach-pending" && f.selectCalls != 2 {
+				t.Fatalf("repeated native selection while dead: %d", f.selectCalls)
 			}
 		})
 	}
@@ -188,5 +200,16 @@ func TestFocusWatcherStopsWhenRecoveryIsIgnored(t *testing.T) {
 	}
 	if f.selectCalls != 4 || !f.stopped || !f.closed {
 		t.Fatalf("retries/cleanup: calls=%d stopped=%t closed=%t", f.selectCalls, f.stopped, f.closed)
+	}
+}
+
+func TestDeadFocusRejectsChangedOwnerAfterHotkey(t *testing.T) {
+	r, request, f := testRecorder(t, "watch-owner")
+	f.launched = true
+	if _, err := r.recoverDeadFocus(context.Background(), 4242, '2', player{SummonerName: "Player#KR1"}, request.Target, 60); err == nil {
+		t.Fatal("accepted changed process")
+	}
+	if f.cameraControlsSet {
+		t.Fatal("camera was modified after ownership changed")
 	}
 }

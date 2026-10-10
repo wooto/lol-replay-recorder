@@ -531,6 +531,7 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 		// final seek, not only before it, and allow the UI/camera to settle.
 		settleCtx, cancel := context.WithTimeout(loadCtx, 25*time.Second)
 		stable := time.Time{}
+		deadBoundaryPending := false
 		for {
 			var render renderState
 			if err = r.api.request(settleCtx, "GET", "/replay/playback", nil, &playback); err != nil {
@@ -541,11 +542,33 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 				cancel()
 				return result, err
 			}
+			deadAtBoundary := false
+			if render.SelectionName == "" {
+				var live gameData
+				if err = r.api.request(settleCtx, "GET", "/liveclientdata/allgamedata", nil, &live); err != nil {
+					cancel()
+					return result, err
+				}
+				_, current, lookupErr := locateTarget(live.Players, request.Target)
+				deadAtBoundary = lookupErr == nil && current.Team == target.Team && current.IsDead != nil && *current.IsDead && live.Clock.Time != nil && finiteNumber(*live.Clock.Time) && math.Abs(*live.Clock.Time-playback.Time) <= 2
+			}
+			drift := focusDrift(render, target, request.Target, baseCameraOffset, true)
+			if deadAtBoundary {
+				drift = render.CameraAttached == nil || (!*render.CameraAttached && !deadBoundaryPending) || !cameraPoseValid(render) || !cameraInputControlsValid(render) || render.SelectionOffset == nil || !cameraOffsetMatches(*render.SelectionOffset, baseCameraOffset)
+			} else {
+				deadBoundaryPending = false
+			}
 			if playback.Seeking || !playback.Paused || math.Abs(playback.Time-seekTime) > 0.25 {
 				stable = time.Time{}
-			} else if focusDrift(render, target, request.Target, baseCameraOffset, true) {
+			} else if drift {
 				stable = time.Time{}
-				if _, err = r.recoverFocus(settleCtx, process.pid(), r.config.SelectionKeys[index], target, request.Target, playback.Time); err != nil {
+				if deadAtBoundary {
+					_, err = r.recoverDeadFocus(settleCtx, process.pid(), r.config.SelectionKeys[index], target, request.Target, playback.Time)
+					deadBoundaryPending = err == nil
+				} else {
+					_, err = r.recoverFocus(settleCtx, process.pid(), r.config.SelectionKeys[index], target, request.Target, playback.Time)
+				}
+				if err != nil {
 					cancel()
 					return result, err
 				}
@@ -586,6 +609,8 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 	startDeadline := time.Now().Add(15 * time.Second)
 	lastProgressAt := time.Now()
 	var recoveryBudget focusBudget
+	deadFocusPending := false
+	lastObservedCurrent := 0.0
 	for {
 		if process.exited() {
 			return result, errors.New("game exited during recording")
@@ -597,8 +622,9 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 		if owner.PID != process.pid() {
 			return result, errors.New("Replay API ownership changed during recording")
 		}
-		var state recordingState
-		if err = r.api.request(recordingCtx, "GET", "/replay/recording", nil, &state); err != nil {
+		state, readErr := r.recordingStatus(recordingCtx, process.pid(), started && lastObservedCurrent >= toSeconds-1)
+		if readErr != nil {
+			err = readErr
 			return result, err
 		}
 		if state.Recording == nil {
@@ -634,6 +660,7 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 		if state.Path == "" || !samePath(state.Path, request.OutputPath) || math.Abs(state.Start-nativeStart) > 0.25 || math.Abs(state.End-toSeconds) > 0.5 || !finitePositive(state.End) || math.IsNaN(state.Current) || math.IsInf(state.Current, 0) {
 			return result, errors.New("Replay API recording range or output differs from request")
 		}
+		lastObservedCurrent = state.Current
 		// Native completion may reset camera/UI objects. A watcher must stop
 		// with capture, rather than refocusing an already finished recording.
 		if r.config.RecoverFocus && started && !*state.Recording && state.Current >= toSeconds-0.5 {
@@ -659,13 +686,28 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 		// camera, invalid view or unexpected offset before the fatal checks below.
 		// Empty selections retain the existing death/respawn handling.
 		confirmedDeath := false
-		if r.config.RecoverFocus && render.SelectionName == "" {
+		if r.config.RecoverFocus && (render.SelectionName == "" || selectedIdentity(render, target, request.Target)) && !locked(render, target, request.Target) {
 			var live gameData
 			if err = r.api.request(recordingCtx, "GET", "/liveclientdata/allgamedata", nil, &live); err != nil {
 				return result, err
 			}
 			_, current, e := locateTarget(live.Players, request.Target)
 			confirmedDeath = e == nil && current.Team == target.Team && current.IsDead != nil && *current.IsDead && live.Clock.Time != nil && finiteNumber(*live.Clock.Time) && math.Abs(*live.Clock.Time-state.Current) <= 2
+		}
+		if !confirmedDeath {
+			deadFocusPending = false
+		}
+		if confirmedDeath && !deadFocusPending && (render.CameraAttached == nil || !*render.CameraAttached) {
+			if !recoveryBudget.allow(time.Now()) {
+				return result, ErrCameraLock
+			}
+			render, err = r.recoverDeadFocus(recordingCtx, process.pid(), r.config.SelectionKeys[index], target, request.Target, state.Current)
+			if err != nil {
+				return result, err
+			}
+			deadFocusPending = true
+			expectedCameraOffset = baseCameraOffset
+			follower.suspend()
 		}
 		if r.config.RecoverFocus && !confirmedDeath && focusDrift(render, target, request.Target, expectedCameraOffset, !preRoll && !lifecycleReset) {
 			if !recoveryBudget.allow(time.Now()) {
@@ -692,7 +734,7 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 		if !preRoll && !cameraOffsetWithinRange(render) && !(lifecycleReset && selectionLocked) {
 			return result, fmt.Errorf("%w at %.3fs (camera view changed)", ErrCameraLock, state.Current)
 		}
-		if !locked(render, target, request.Target) {
+		if !locked(render, target, request.Target) && !confirmedDeath {
 			follower.suspend()
 			// Starting the encoder can temporarily remove game objects. Recover an
 			// empty selection only at native preroll or requested video start; a
@@ -735,7 +777,7 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 					return result, ErrCameraLock
 				}
 			}
-			if !locked(render, target, request.Target) {
+			if !locked(render, target, request.Target) && !confirmedDeath {
 				if render.SelectionName != "" || render.CameraAttached == nil || !*render.CameraAttached {
 					return result, ErrCameraLock
 				}

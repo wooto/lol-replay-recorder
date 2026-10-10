@@ -39,6 +39,7 @@ func TestConnectionRefusedFromClosedLocalListener(t *testing.T) {
 }
 
 type fixture struct {
+	deadCameraReattached                          bool
 	roster                                        []map[string]any
 	expectedSelectionKey                          uint16
 	cameraProfile                                 bool
@@ -232,11 +233,15 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 			encode(map[string]any{"gameData": map[string]any{"gameTime": float64(f.ticks) * 30}, "allPlayers": f.roster})
 			return
 		}
-		var dead any = (f.mode == "death-respawn" || f.mode == "death-unattached" || f.mode == "death-other-player" || f.mode == "death-stale-data" || f.mode == "camera-follow-death-ack") && f.ticks == 2
+		var dead any = (f.mode == "death-respawn" || f.mode == "death-detach-recover" || f.mode == "death-detach-pending" || f.mode == "death-unattached" || f.mode == "death-other-player" || f.mode == "death-stale-data" || f.mode == "camera-follow-death-ack") && f.ticks == 2
 		if f.mode == "death-unknown" {
 			dead = nil
 		}
 		gameTime := float64(f.ticks) * 30
+		if f.mode == "death-detach-pending" {
+			dead = f.ticks >= 2 && f.ticks <= 8
+			gameTime = float64(f.ticks) * 9
+		}
 		if f.mode == "camera-follow-death-ack" && f.ticks == 2 {
 			f.deathAckDeathSeen = true
 			f.deathAckDeathClock = gameTime
@@ -254,6 +259,9 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 			if err := json.NewDecoder(request.Body).Decode(&raw); err != nil {
 				http.Error(w, "invalid render", 400)
 				return
+			}
+			if f.mode == "death-detach-recover" && f.ticks >= 2 && string(raw["cameraAttached"]) == "true" {
+				f.deadCameraReattached = true
 			}
 			if raw["selectionOffset"] != nil {
 				var offset struct{ X, Y, Z float64 }
@@ -373,8 +381,18 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 		if f.mode == "camera-follow-death-ack" && f.ticks == 2 && !f.restored {
 			name = ""
 		}
+		if f.mode == "death-detach-pending" && f.ticks >= 2 && f.ticks <= 8 {
+			name = ""
+			attached = false
+		}
 		if f.ticks == 2 {
 			switch f.mode {
+			case "death-detach-recover":
+				name = ""
+				attached = f.deadCameraReattached
+			case "death-detach-pending":
+				name = ""
+				attached = false
 			case "death-unattached":
 				name = ""
 				attached = false
@@ -521,6 +539,9 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 			return
 		}
 		active := f.ticks <= 3
+		if f.mode == "death-detach-pending" {
+			active = f.ticks <= 10
+		}
 		if f.mode == "watch-flapping" {
 			active = f.ticks <= 20
 		}
@@ -528,6 +549,9 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 			active = f.ticks <= 4
 		}
 		current := float64(f.ticks) * 30
+		if f.mode == "death-detach-pending" {
+			current = float64(f.ticks) * 9
+		}
 		if f.mode == "watch-flapping" {
 			current = float64(f.ticks) * 3
 		}

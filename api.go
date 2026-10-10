@@ -239,7 +239,10 @@ func locateTarget(players []player, id RiotID) (int, player, error) {
 	return found, target, nil
 }
 func locked(state renderState, p player, id RiotID) bool {
-	return state.CameraAttached != nil && *state.CameraAttached && state.SelectionName != "" &&
+	return state.CameraAttached != nil && *state.CameraAttached && selectedIdentity(state, p, id)
+}
+func selectedIdentity(state renderState, p player, id RiotID) bool {
+	return state.SelectionName != "" &&
 		(strings.EqualFold(state.SelectionName, id.String()) ||
 			(strings.Contains(p.SummonerName, "#") && strings.EqualFold(state.SelectionName, p.SummonerName)) ||
 			(p.NameUnique && (strings.EqualFold(state.SelectionName, id.GameName) || state.SelectionName == p.SummonerName)))
