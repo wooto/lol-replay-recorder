@@ -215,6 +215,20 @@ func validateRequest(request Request) (Request, error) {
 // and verifies the output. It closes only the game process it launched. On failure
 // it returns no successful Result and preserves partial output for inspection.
 func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Result, err error) {
+	return r.record(ctx, request, 0, 0, true)
+}
+
+// RecordInterval records the replay match-time interval [fromSeconds,toSeconds].
+// The output is normalized to a zero-based timeline and must cover the full
+// requested duration. Bounds are checked against the loaded replay.
+func (r *Recorder) RecordInterval(ctx context.Context, request Request, fromSeconds, toSeconds float64) (result Result, err error) {
+	if math.IsNaN(fromSeconds) || math.IsInf(fromSeconds, 0) || math.IsNaN(toSeconds) || math.IsInf(toSeconds, 0) || fromSeconds < 0 || toSeconds <= fromSeconds {
+		return Result{}, errors.New("recording interval requires finite bounds with 0 <= from < to")
+	}
+	return r.record(ctx, request, fromSeconds, toSeconds, false)
+}
+
+func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toSeconds float64, full bool) (result Result, err error) {
 	if !r.active.CompareAndSwap(false, true) {
 		return Result{}, ErrBusy
 	}
@@ -379,6 +393,15 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 	if !finitePositive(length) || length > 24*60*60 {
 		return result, errors.New("invalid replay length")
 	}
+	if full {
+		fromSeconds, toSeconds = 0, length
+	} else if toSeconds > length {
+		return result, errors.New("recording interval exceeds replay length")
+	}
+	duration := toSeconds - fromSeconds
+	if !finitePositive(duration) {
+		return result, errors.New("invalid recording interval duration")
+	}
 	index, target, e := locateTarget(players.Players, request.Target)
 	if e != nil {
 		return result, e
@@ -462,7 +485,25 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 		return result, e
 	}
 	stage = StageRecord
-	r.emit(stage, 0, length)
+	r.emit(stage, 0, duration)
+	// Keep setup and target verification at the opening frame, then seek to the
+	// requested match time before enabling the native recorder.
+	if fromSeconds > 0 {
+		if err = r.api.request(loadCtx, "POST", "/replay/playback", map[string]any{"time": fromSeconds, "paused": true, "speed": 1}, nil); err != nil {
+			return result, err
+		}
+		for {
+			if err = r.api.request(loadCtx, "GET", "/replay/playback", nil, &playback); err != nil {
+				return result, err
+			}
+			if !playback.Seeking && playback.Paused && math.Abs(playback.Time-fromSeconds) <= 0.25 {
+				break
+			}
+			if err = wait(loadCtx, r.config.PollInterval); err != nil {
+				return result, err
+			}
+		}
+	}
 	start := time.Now().UTC()
 	// League Director starts playback before enabling the recorder. Afterwards
 	// the encoder owns playback timing to enforce the requested frame rate.
@@ -476,12 +517,13 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 	// In the tested client, FPS capture begins five seconds after startTime.
 	// Negative pre-roll initializes capture before game time zero; decoded media
 	// timestamps must still prove the exact 0..length output range.
-	const nativeStart = -5.0
-	options := map[string]any{"recording": true, "path": request.OutputPath, "codec": "webm", "startTime": nativeStart, "endTime": length, "width": request.Width, "height": request.Height, "framesPerSecond": request.FPS, "enforceFrameRate": false, "replaySpeed": 1}
+	const nativePreroll = 5.0
+	nativeStart := fromSeconds - nativePreroll
+	options := map[string]any{"recording": true, "path": request.OutputPath, "codec": "webm", "startTime": nativeStart, "endTime": toSeconds, "width": request.Width, "height": request.Height, "framesPerSecond": request.FPS, "enforceFrameRate": false, "replaySpeed": 1}
 	if err = r.api.request(ctx, "POST", "/replay/recording", options, nil); err != nil {
 		return result, err
 	}
-	recordingCtx, cancelRecord := context.WithTimeout(ctx, time.Duration(length*1.5*float64(time.Second))+2*time.Minute)
+	recordingCtx, cancelRecord := context.WithTimeout(ctx, time.Duration(duration*1.5*float64(time.Second))+2*time.Minute)
 	defer cancelRecord()
 	started := false
 	startDeadline := time.Now().Add(15 * time.Second)
@@ -512,15 +554,15 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 			if err = r.api.request(recordingCtx, "GET", "/replay/playback", nil, &ended); err != nil {
 				return result, err
 			}
-			if ended.Seeking || !finitePositive(ended.Time) || !finitePositive(ended.Length) || math.Abs(ended.Length-length) > 0.5 || ended.Time < length-0.5 {
+			if ended.Seeking || !finitePositive(ended.Time) || !finitePositive(ended.Length) || math.Abs(ended.Length-length) > 0.5 || ended.Time < toSeconds-0.5 {
 				return result, ErrRecordingIncomplete
 			}
-			state.Path, state.Start, state.End, state.Current = request.OutputPath, nativeStart, length, length
+			state.Path, state.Start, state.End, state.Current = request.OutputPath, nativeStart, toSeconds, toSeconds
 		}
 		// Native completion retains the path/current time but resets endTime to
 		// -1. Preserve all normal path, start, target-camera and media checks.
-		if started && !*state.Recording && state.End == -1 && state.Current >= length-0.5 {
-			state.End = length
+		if started && !*state.Recording && state.End == -1 && state.Current >= toSeconds-0.5 {
+			state.End = toSeconds
 		}
 		if !started && !*state.Recording && state.Path == "" {
 			if time.Now().After(startDeadline) {
@@ -531,7 +573,7 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 			}
 			continue
 		}
-		if state.Path == "" || !samePath(state.Path, request.OutputPath) || math.Abs(state.Start-nativeStart) > 0.25 || math.Abs(state.End-length) > 0.5 || !finitePositive(state.End) || math.IsNaN(state.Current) || math.IsInf(state.Current, 0) {
+		if state.Path == "" || !samePath(state.Path, request.OutputPath) || math.Abs(state.Start-nativeStart) > 0.25 || math.Abs(state.End-toSeconds) > 0.5 || !finitePositive(state.End) || math.IsNaN(state.Current) || math.IsInf(state.Current, 0) {
 			return result, errors.New("Replay API recording range or output differs from request")
 		}
 		var render renderState
@@ -554,10 +596,10 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 		}
 		if !locked(render, target, request.Target) {
 			follower.suspend()
-			// Starting the encoder seeks back to zero, temporarily removing game
-			// objects. Only an empty selection in the initial 250 ms may recover;
+			// Starting the encoder can temporarily remove game objects. Only an
+			// empty selection in the requested interval's first 250 ms may recover;
 			// a different selected player or any later lock loss remains fatal.
-			if state.Current >= 0 && state.Current <= 0.25 && render.SelectionName == "" && time.Now().Before(startDeadline) {
+			if state.Current >= fromSeconds && state.Current <= fromSeconds+0.25 && render.SelectionName == "" && time.Now().Before(startDeadline) {
 				if err = r.api.request(recordingCtx, "POST", "/replay/render", map[string]any{"selectionName": selectionName, "cameraAttached": true}, nil); err != nil {
 					return result, err
 				}
@@ -662,17 +704,17 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 			started = true
 		}
 		if time.Since(lastProgressAt) >= r.config.PollInterval || !*state.Recording {
-			r.emit(stage, state.Current, length)
+			r.emit(stage, max(state.Current-fromSeconds, 0), duration)
 			lastProgressAt = time.Now()
 		}
 		if !*state.Recording {
-			if !started && state.Current < length-0.5 && time.Now().Before(startDeadline) {
+			if !started && state.Current < toSeconds-0.5 && time.Now().Before(startDeadline) {
 				if err = wait(recordingCtx, r.config.PollInterval); err != nil {
 					return result, err
 				}
 				continue
 			}
-			if !started || state.Current < length-0.5 {
+			if !started || state.Current < toSeconds-0.5 {
 				return result, ErrRecordingIncomplete
 			}
 			break
@@ -683,7 +725,7 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 	}
 	attemptedRecording = false
 	stage = StageFinalize
-	r.emit(stage, length, length)
+	r.emit(stage, duration, duration)
 	finalizeCtx, cancelFinalize := context.WithTimeout(ctx, r.config.FinalizeTimeout)
 	defer cancelFinalize()
 	var lastSize int64
@@ -708,10 +750,10 @@ func (r *Recorder) RecordFull(ctx context.Context, request Request) (result Resu
 			return result, err
 		}
 	}
-	if err = r.verifier.verify(finalizeCtx, request.OutputPath, length); err != nil {
+	if err = r.verifier.verify(finalizeCtx, request.OutputPath, duration); err != nil {
 		return result, err
 	}
-	return Result{Path: request.OutputPath, Target: request.Target, DurationSeconds: length, StartedAt: start, FinishedAt: time.Now().UTC()}, nil
+	return Result{Path: request.OutputPath, Target: request.Target, DurationSeconds: duration, StartedAt: start, FinishedAt: time.Now().UTC()}, nil
 }
 
 // Winsock returns WSAECONNREFUSED (10061), whereas syscall.ECONNREFUSED

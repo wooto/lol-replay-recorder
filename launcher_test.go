@@ -3,6 +3,7 @@ package recorder
 import (
 	"context"
 	"errors"
+	"math"
 	"testing"
 	"time"
 )
@@ -11,6 +12,43 @@ func TestFullRecordingKeepsCameraAboveTargetAcrossEncoderSeeks(t *testing.T) {
 	r, request, _ := testRecorder(t, "camera-offset")
 	if _, err := r.RecordFull(context.Background(), request); err != nil {
 		t.Fatalf("selected player must retain an elevated camera and normal angle through the full recording: %v", err)
+	}
+}
+
+func TestRecordIntervalCapturesOnlyRequestedMatchTime(t *testing.T) {
+	r, request, f := testRecorder(t, "interval")
+	result, err := r.RecordInterval(context.Background(), request, 60, 90)
+	if err != nil {
+		t.Fatalf("short interval recording failed: %v", err)
+	}
+	if result.DurationSeconds != 30 || f.start != 55 || f.end != 90 || f.playbackTime != 90 {
+		t.Fatalf("interval bounds were not applied: result=%+v start=%v end=%v playback=%v", result, f.start, f.end, f.playbackTime)
+	}
+	if !f.selected || !f.verified || !f.closed {
+		t.Fatalf("interval recording skipped target verification or process cleanup: %+v", f)
+	}
+}
+
+func TestRecordIntervalCanRepresentKnownFullReplayRange(t *testing.T) {
+	r, request, f := testRecorder(t, "full-interval")
+	result, err := r.RecordInterval(context.Background(), request, 0, 90)
+	if err != nil {
+		t.Fatalf("full replay interval failed: %v", err)
+	}
+	if result.DurationSeconds != 90 || f.start != -5 || f.end != 90 {
+		t.Fatalf("full interval bounds were not applied: result=%+v start=%v end=%v", result, f.start, f.end)
+	}
+}
+
+func TestRecordIntervalRejectsInvalidBoundsBeforeLaunching(t *testing.T) {
+	for _, bounds := range [][2]float64{{-1, 1}, {1, 1}, {2, 1}, {0, math.NaN()}, {0, math.Inf(1)}} {
+		r, request, f := testRecorder(t, "")
+		if _, err := r.RecordInterval(context.Background(), request, bounds[0], bounds[1]); err == nil {
+			t.Fatalf("accepted interval %v", bounds)
+		}
+		if f.launched {
+			t.Fatalf("launched client for invalid interval %v", bounds)
+		}
 	}
 }
 

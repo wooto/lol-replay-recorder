@@ -78,6 +78,7 @@ type fixture struct {
 	ticks                                         int
 	path                                          string
 	start, end                                    float64
+	playbackTime                                  float64
 }
 type fakeDesktop struct{ f *fixture }
 type fakeProcess struct{ f *fixture }
@@ -136,6 +137,15 @@ func (v fakeVerifier) verify(_ context.Context, path string, duration float64) e
 	if v.f.mode == "corrupt" {
 		return ErrRecordingIncomplete
 	}
+	if v.f.mode == "interval" {
+		if path != v.f.path || duration != 30 || v.f.start != 55 || v.f.end != 90 {
+			return errors.New("interval range or duration was not preserved")
+		}
+		return validateProbe([]byte(`{"format":{"duration":"30"},"streams":[{"codec_type":"video","nb_read_frames":"900"}],"packets":[{"pts_time":"0","duration_time":"0.033"},{"pts_time":"29.967","duration_time":"0.033"}]}`), duration)
+	}
+	if v.f.mode == "full-interval" && (path != v.f.path || duration != 90 || v.f.start != -5 || v.f.end != 90) {
+		return errors.New("full-length interval range or duration was not preserved")
+	}
 	if path != v.f.path || duration != 90 {
 		return errors.New("incorrect output passed to verifier")
 	}
@@ -176,11 +186,26 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 			http.Error(w, "encoder owns playback clock", http.StatusConflict)
 			return
 		}
+		if request.Method == "POST" {
+			var body struct {
+				Time   *float64 `json:"time"`
+				Paused *bool    `json:"paused"`
+			}
+			if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+				http.Error(w, "bad request", 400)
+				return
+			}
+			if body.Time != nil {
+				f.playbackTime = *body.Time
+			}
+			encode(map[string]any{})
+			return
+		}
 		length := 90
 		if f.mode == "load-timeout" {
 			length = 0
 		}
-		current := 0
+		current := f.playbackTime
 		if (f.mode == "reset-on-complete" || f.mode == "reset-lost-lock") && f.ticks >= 4 {
 			current = 90
 		}
@@ -468,8 +493,17 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 		}
 		active := f.ticks <= 3
 		current := float64(f.ticks) * 30
+		if f.mode == "interval" {
+			current = f.playbackTime + float64(f.ticks)*10
+		}
 		if !active {
-			current = 90
+			current = f.end
+			if f.mode != "interval" {
+				current = 90
+			}
+			if f.mode == "interval" {
+				f.playbackTime = f.end
+			}
 		}
 		if f.mode == "never-started" {
 			active = false
@@ -498,7 +532,7 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 			return
 		}
 		if !active && f.mode == "native-complete" {
-			encode(map[string]any{"recording": false, "path": path, "currentTime": 90, "startTime": f.start, "endTime": -1})
+			encode(map[string]any{"recording": false, "path": path, "currentTime": f.end, "startTime": f.start, "endTime": -1})
 			return
 		}
 		encode(map[string]any{"recording": active, "path": path, "startTime": f.start, "endTime": f.end, "currentTime": current})
