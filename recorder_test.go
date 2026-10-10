@@ -137,7 +137,7 @@ func (v fakeVerifier) verify(_ context.Context, path string, duration float64) e
 	if v.f.mode == "corrupt" {
 		return ErrRecordingIncomplete
 	}
-	if v.f.mode == "interval" {
+	if v.f.mode == "interval" || v.f.mode == "interval-camera-jump" {
 		if path != v.f.path || duration != 30 || v.f.start != 55 || v.f.end != 90 {
 			return errors.New("interval range or duration was not preserved")
 		}
@@ -372,7 +372,11 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 			cameraPosition := cameraVector{X: targetX + f.selectionOffset.X, Y: 100 + f.selectionOffset.Y, Z: 5000 + f.selectionOffset.Z}
 			camera["cameraPosition"] = cameraPosition
 		} else {
-			camera["cameraPosition"] = cameraVector{X: 5000 + f.selectionOffset.X, Y: 100 + f.selectionOffset.Y, Z: 5000 + f.selectionOffset.Z}
+			targetX := 5000.0
+			if f.mode == "interval-camera-jump" && f.playbackTime >= 60 {
+				targetX += 200
+			}
+			camera["cameraPosition"] = cameraVector{X: targetX + f.selectionOffset.X, Y: 100 + f.selectionOffset.Y, Z: 5000 + f.selectionOffset.Z}
 		}
 		if f.mode == "camera-profile-ignored" {
 			delete(camera, "selectionOffset")
@@ -493,15 +497,15 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 		}
 		active := f.ticks <= 3
 		current := float64(f.ticks) * 30
-		if f.mode == "interval" {
+		if f.mode == "interval" || f.mode == "interval-camera-jump" {
 			current = f.playbackTime + float64(f.ticks)*10
 		}
 		if !active {
 			current = f.end
-			if f.mode != "interval" {
+			if f.mode != "interval" && f.mode != "interval-camera-jump" {
 				current = 90
 			}
-			if f.mode == "interval" {
+			if f.mode == "interval" || f.mode == "interval-camera-jump" {
 				f.playbackTime = f.end
 			}
 		}

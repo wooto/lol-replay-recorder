@@ -15,8 +15,8 @@ func TestFullRecordingKeepsCameraAboveTargetAcrossEncoderSeeks(t *testing.T) {
 	}
 }
 
-func TestRecordIntervalCapturesOnlyRequestedMatchTime(t *testing.T) {
-	r, request, f := testRecorder(t, "interval")
+func TestRecordIntervalRebasesCameraAndCapturesOnlyRequestedMatchTime(t *testing.T) {
+	r, request, f := testRecorder(t, "interval-camera-jump")
 	result, err := r.RecordInterval(context.Background(), request, 60, 90)
 	if err != nil {
 		t.Fatalf("short interval recording failed: %v", err)
@@ -26,6 +26,9 @@ func TestRecordIntervalCapturesOnlyRequestedMatchTime(t *testing.T) {
 	}
 	if !f.selected || !f.verified || !f.closed {
 		t.Fatalf("interval recording skipped target verification or process cleanup: %+v", f)
+	}
+	if len(f.followOffsets) != 0 {
+		t.Fatalf("camera follower reused its time-zero offset after the interval seek: %+v", f.followOffsets)
 	}
 }
 

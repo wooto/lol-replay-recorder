@@ -503,6 +503,10 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 				return result, err
 			}
 		}
+		// Seeking changes the selected target's world position independently
+		// of the time-zero camera sample used during setup. Rebase following on
+		// the first verified render frame at the interval start.
+		follower.suspend()
 	}
 	start := time.Now().UTC()
 	// League Director starts playback before enabling the recorder. Afterwards
