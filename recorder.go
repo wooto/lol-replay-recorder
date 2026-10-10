@@ -620,6 +620,11 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 		if state.Path == "" || !samePath(state.Path, request.OutputPath) || math.Abs(state.Start-nativeStart) > 0.25 || math.Abs(state.End-toSeconds) > 0.5 || !finitePositive(state.End) || math.IsNaN(state.Current) || math.IsInf(state.Current, 0) {
 			return result, errors.New("Replay API recording range or output differs from request")
 		}
+		// Native completion may reset camera/UI objects. A watcher must stop
+		// with capture, rather than refocusing an already finished recording.
+		if r.config.RecoverFocus && started && !*state.Recording && state.Current >= toSeconds-0.5 {
+			break
+		}
 		var render renderState
 		if err = r.api.request(recordingCtx, "GET", "/replay/render", nil, &render); err != nil {
 			return result, err

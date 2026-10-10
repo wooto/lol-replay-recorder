@@ -9,7 +9,7 @@ import (
 )
 
 func TestFocusWatcherRecoversDuringRecording(t *testing.T) {
-	for _, mode := range []string{"watch-wrong-player", "watch-empty", "watch-detached", "watch-position", "watch-ack"} {
+	for _, mode := range []string{"watch-wrong-player", "watch-empty", "watch-detached", "watch-position", "watch-ack", "watch-repeated"} {
 		t.Run(mode, func(t *testing.T) {
 			r, request, f := testRecorder(t, mode)
 			r.config.RecoverFocus = true
@@ -24,6 +24,31 @@ func TestFocusWatcherRecoversDuringRecording(t *testing.T) {
 				t.Fatal("selected identity through API")
 			}
 		})
+	}
+}
+
+func TestFocusWatcherDoesNotRefocusAfterCompletion(t *testing.T) {
+	r, request, f := testRecorder(t, "watch-ended")
+	r.config.RecoverFocus = true
+	r.config.LaunchTimeout = 5 * time.Second
+	if _, err := r.RecordFull(context.Background(), request); err != nil {
+		t.Fatal(err)
+	}
+	if f.selectCalls != 1 || !f.verified {
+		t.Fatalf("refocused after capture ended: calls=%d", f.selectCalls)
+	}
+}
+
+func TestFocusWatcherStopsPersistentFlapping(t *testing.T) {
+	r, request, f := testRecorder(t, "watch-flapping")
+	r.config.RecoverFocus = true
+	r.config.LaunchTimeout = 5 * time.Second
+	_, err := r.RecordFull(context.Background(), request)
+	if !errors.Is(err, ErrCameraLock) || !strings.Contains(err.Error(), "five recoveries") {
+		t.Fatalf("got %v", err)
+	}
+	if f.selectCalls != 6 || !f.stopped || !f.closed {
+		t.Fatalf("unbounded or incomplete cleanup: calls=%d stopped=%t closed=%t", f.selectCalls, f.stopped, f.closed)
 	}
 }
 

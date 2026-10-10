@@ -52,6 +52,7 @@ type fixture struct {
 	selectionWrites                               int
 	selectionTrackWrites                          int
 	selectCalls                                   int
+	recoveredTick                                 int
 	cameraOffsetTrack                             bool
 	followOffsets                                 []cameraVector
 	selectionOffset                               cameraVector
@@ -112,6 +113,7 @@ func (d fakeDesktop) selectPlayer(_ context.Context, _ int, key uint16) error {
 	d.f.selected = true
 	if strings.HasPrefix(d.f.mode, "watch-") && d.f.ticks >= 2 {
 		d.f.restored = true
+		d.f.recoveredTick = d.f.ticks
 	}
 	if (d.f.mode == "respawn-race" || d.f.mode == "camera-follow-death-ack") && d.f.ticks == 2 {
 		d.f.restored = true
@@ -337,6 +339,9 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 			}
 		}
 		attached := f.selected && f.mode != "target-lock" && !(f.mode == "lost-lock" && f.ticks >= 2)
+		if (f.mode == "watch-repeated" || f.mode == "watch-flapping") && f.ticks >= 2 && f.recoveredTick != f.ticks {
+			attached = false
+		}
 		if f.mode == "watch-ack" && f.ticks >= 2 && f.cameraTrack && !f.restored {
 			attached = false
 		}
@@ -344,6 +349,10 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 			attached = false
 		}
 		name := "Player#KR1"
+		if f.mode == "watch-ended" && f.ticks >= 4 {
+			name = "Other#KR1"
+			attached = false
+		}
 		if strings.HasPrefix(f.mode, "watch-") && f.ticks >= 2 && !f.restored {
 			switch f.mode {
 			case "watch-wrong-player":
@@ -510,10 +519,16 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 			return
 		}
 		active := f.ticks <= 3
+		if f.mode == "watch-flapping" {
+			active = f.ticks <= 20
+		}
 		if f.mode == "interval-camera-jump" {
 			active = f.ticks <= 4
 		}
 		current := float64(f.ticks) * 30
+		if f.mode == "watch-flapping" {
+			current = float64(f.ticks) * 3
+		}
 		if f.mode == "interval" {
 			current = f.playbackTime + float64(f.ticks)*10
 		}
