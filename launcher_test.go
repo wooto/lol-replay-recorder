@@ -355,3 +355,20 @@ func TestNativeRecordingPreservesMatchTimeInOutputVideo(t *testing.T) {
 		t.Fatalf("full video must retain normal match duration: %v", err)
 	}
 }
+
+func TestNativePrerollSettlesAfterTargetCallbackWarmsPlayback(t *testing.T) {
+	r, request, _ := testRecorder(t, "native-preroll")
+	r.config.LaunchTimeout = 5 * time.Second
+	r.config.RecoverFocus = true
+	r.config.NativeFollow = true
+	r.config.OnProgress = func(progress Progress) {
+		if progress.Stage == StageTarget {
+			if err := r.api.request(context.Background(), "POST", "/replay/playback", map[string]any{"time": 3, "paused": true}, nil); err != nil {
+				t.Error(err)
+			}
+		}
+	}
+	if _, err := r.RecordFull(context.Background(), request); err != nil {
+		t.Fatalf("warmed zero-start capture failed: %v", err)
+	}
+}

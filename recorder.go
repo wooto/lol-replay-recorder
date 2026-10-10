@@ -518,6 +518,14 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 		// the first verified render frame at the interval start.
 		follower.suspend()
 	}
+	if seekTime <= 0.25 {
+		// Target/UI preparation callbacks may warm the replay beyond time zero.
+		// No seek was issued above; settle at the actual paused preflight position.
+		if err = r.api.request(loadCtx, "GET", "/replay/playback", nil, &playback); err != nil {
+			return result, err
+		}
+		seekTime = playback.Time
+	}
 	if r.config.RecoverFocus {
 		// A seek can destroy the selected champion object. Repair after the
 		// final seek, not only before it, and allow the UI/camera to settle.
