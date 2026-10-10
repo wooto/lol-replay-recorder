@@ -45,7 +45,7 @@ func (v probeVerifier) ready() error {
 	return nil
 }
 func (v probeVerifier) verify(ctx context.Context, path string, length float64, width, height int) (probeObservation, error) {
-	command := exec.CommandContext(ctx, v.path(), "-v", "error", "-select_streams", "v:0", "-count_frames", "-show_packets", "-show_entries", "format=duration:stream=codec_type,codec_name,width,height,nb_read_frames:packet=pts_time,duration_time", "-of", "json", path)
+	command := exec.CommandContext(ctx, v.path(), "-v", "error", "-threads", "0", "-select_streams", "v:0", "-count_frames", "-show_packets", "-show_entries", "format=duration:stream=codec_type,codec_name,width,height,nb_read_frames:packet=pts_time,duration_time", "-of", "json", path)
 	var stderr probeErrorOutput
 	command.Stderr = &stderr
 	stdout, err := command.StdoutPipe()

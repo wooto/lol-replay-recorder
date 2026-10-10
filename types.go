@@ -72,6 +72,8 @@ type Config struct {
 	ReplayURL       string
 	PollInterval    time.Duration
 	LaunchTimeout   time.Duration
+	// FinalizeTimeout bounds output verification. Zero uses at least three
+	// minutes, scaling to half the requested duration for full-frame decoding.
 	FinalizeTimeout time.Duration
 	RequestTimeout  time.Duration
 	// SelectionKeys are Windows virtual-key codes in ORDER then CHAOS team order.

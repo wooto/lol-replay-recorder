@@ -58,14 +58,16 @@ type mediaVerifier interface {
 // Recorder is reusable. At most one RecordFull call may run at a time. New does
 // not launch the game, change settings, or open network connections.
 type Recorder struct {
-	config   Config
-	api      *replayAPI
-	desktop  desktop
-	verifier mediaVerifier
-	active   atomic.Bool
+	autoFinalizeTimeout bool
+	config              Config
+	api                 *replayAPI
+	desktop             desktop
+	verifier            mediaVerifier
+	active              atomic.Bool
 }
 
 func New(config Config) (*Recorder, error) {
+	autoFinalizeTimeout := config.FinalizeTimeout == 0
 	if config.ConfigureHotkeys && config.Hotkeys == nil {
 		return nil, errors.New("ConfigureHotkeys requires a Hotkeys settings adapter")
 	}
@@ -102,7 +104,20 @@ func New(config Config) (*Recorder, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Recorder{config: config, api: api, desktop: nativeDesktop{}, verifier: probeVerifier{executable: config.ProbeExecutable}}, nil
+	return &Recorder{config: config, api: api, desktop: nativeDesktop{}, verifier: probeVerifier{executable: config.ProbeExecutable}, autoFinalizeTimeout: autoFinalizeTimeout}, nil
+}
+
+func (r *Recorder) finalizationTimeout(duration float64) time.Duration {
+	limit := r.config.FinalizeTimeout
+	if r.autoFinalizeTimeout {
+		// Validate every decoded frame, allowing long captures to finish on
+		// slower machines rather than imposing the short-clip default.
+		decodeLimit := time.Duration(duration * float64(time.Second) / 2)
+		if decodeLimit > limit {
+			limit = decodeLimit
+		}
+	}
+	return limit
 }
 func (r *Recorder) emit(stage Stage, current, total float64) {
 	r.config.Logger.Debug("replay recording", "stage", stage, "current_seconds", current, "total_seconds", total)
@@ -917,7 +932,7 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 	attemptedRecording = false
 	stage = StageFinalize
 	r.emit(stage, duration, duration)
-	finalizeCtx, cancelFinalize := context.WithTimeout(ctx, r.config.FinalizeTimeout)
+	finalizeCtx, cancelFinalize := context.WithTimeout(ctx, r.finalizationTimeout(duration))
 	defer cancelFinalize()
 	var lastSize int64
 	stable := 0

@@ -102,3 +102,45 @@ func TestEndingReadRetryRejectsMidCaptureAndPersistentTimeouts(t *testing.T) {
 		})
 	}
 }
+
+func TestDefaultFinalizationDeadlineScalesWithoutOverridingExplicitLimit(t *testing.T) {
+	for _, row := range []struct {
+		configured time.Duration
+		duration   float64
+		want       time.Duration
+	}{
+		{0, 15, 3 * time.Minute},
+		{0, 1658, 829 * time.Second},
+		{time.Second, 1658, time.Second},
+	} {
+		original, request, f := testRecorder(t, "long-finalization")
+		config := original.config
+		config.FinalizeTimeout = row.configured
+		r, err := New(config)
+		if err != nil {
+			t.Fatal(err)
+		}
+		r.desktop = original.desktop
+		probe := &deadlineVerifier{}
+		r.verifier = probe
+		if _, err = r.RecordInterval(context.Background(), request, 0, row.duration); err != nil {
+			t.Fatal(err)
+		}
+		if probe.remaining > row.want || probe.remaining < row.want-500*time.Millisecond || !f.closed {
+			t.Fatalf("configured=%v duration=%v: verification deadline %v want %v, closed=%t", row.configured, row.duration, probe.remaining, row.want, f.closed)
+		}
+		r.api.close()
+	}
+}
+
+type deadlineVerifier struct{ remaining time.Duration }
+
+func (*deadlineVerifier) ready() error { return nil }
+func (v *deadlineVerifier) verify(ctx context.Context, _ string, duration float64, _, _ int) (probeObservation, error) {
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		return probeObservation{}, fmt.Errorf("verification is unbounded")
+	}
+	v.remaining = time.Until(deadline)
+	return probeObservation{DurationSeconds: duration, FirstVideoPTSSeconds: .02, LastVideoEndSeconds: duration - .02}, nil
+}

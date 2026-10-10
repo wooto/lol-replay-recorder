@@ -233,6 +233,9 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 			return
 		}
 		length := 90
+		if f.mode == "long-finalization" {
+			length = 1658
+		}
 		if f.mode == "load-timeout" {
 			length = 0
 		}
@@ -566,6 +569,9 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 			active = f.ticks <= 4
 		}
 		current := float64(f.ticks) * 30
+		if f.mode == "long-finalization" {
+			current = float64(f.ticks) * f.end / 3
+		}
 		if f.mode == "death-detach-pending" {
 			current = float64(f.ticks) * 9
 		}
@@ -581,7 +587,7 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 		}
 		if !active {
 			current = f.end
-			if f.mode != "interval" && f.mode != "interval-camera-jump" {
+			if f.mode != "interval" && f.mode != "interval-camera-jump" && f.mode != "long-finalization" {
 				current = 90
 			}
 			if f.mode == "interval" || f.mode == "interval-camera-jump" {
