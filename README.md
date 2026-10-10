@@ -97,7 +97,10 @@ focused game window when startup or a respawn clears selection. It does not writ
 target selection names through the Replay API. An elevated camera height and
 56-degree angle are maintained and verified: attachment alone can otherwise
 leave the camera inside terrain.
-Horizontal following is eased instead of rigidly centering the player: the
+With `NativeFollow: true`, the game owns continuous attached-player motion.
+The recorder does not add directional lead, adaptive height or per-poll camera motion in this mode. It uses the verified spectator slot hotkey twice; bounded focus recovery can repeat those taps when focus is lost.
+
+With `NativeFollow` disabled, horizontal following is eased instead of rigidly centering the player: the
 recorder reads camera position and attachment offset through Replay API and
 uses short linear keyframes as the selected player moves. Native readback
 confirms each transition before the next update. FPS input speeds are zero and
@@ -115,6 +118,11 @@ the replay length, then checks file stability, decodes video frames with ffprobe
 and verifies the first and final video packet timestamps. Audio/container length
 alone cannot prove full video coverage. Packet metadata is parsed as a stream.
 Playback starts before the encoder, following League Director's recording order.
+Positive explicit intervals first seek and settle at the requested boundary,
+then use native `startTime=-1` to record the current position without repeating
+that seek. On the tested patch, repeating the seek dropped about one second of
+video; current-position capture passed 15- and 30-second packet checks. Full and
+zero-start capture retain their separate existing startup behavior.
 Capture uses real-time mode (`enforceFrameRate=false`): the current client's
 accelerated mode produced shortened output during local tests. Completion also
 handles the native `endTime=-1` sentinel without skipping target-camera or media

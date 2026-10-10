@@ -91,6 +91,9 @@ type Config struct {
 	// RecoverFocus enables bounded hotkey recovery when selection/camera drifts.
 	// Recovery runs in the capture loop; no competing camera writer is spawned.
 	RecoverFocus bool
+	// NativeFollow keeps the game's attached camera instead of rewriting
+	// selection offsets every frame. RecoverFocus can still repair lost focus.
+	NativeFollow bool
 }
 
 // HotkeySettings integrates a supported client/settings source. Read must return

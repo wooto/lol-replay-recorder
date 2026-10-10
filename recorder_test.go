@@ -80,6 +80,7 @@ type fixture struct {
 	path                                          string
 	start, end                                    float64
 	playbackTime                                  float64
+	capturePlaybackTime                           float64
 }
 type fakeDesktop struct{ f *fixture }
 type fakeProcess struct{ f *fixture }
@@ -151,7 +152,7 @@ func (v fakeVerifier) verify(_ context.Context, path string, duration float64, w
 		return probeObservation{}, ErrRecordingIncomplete
 	}
 	if v.f.mode == "interval" || v.f.mode == "interval-camera-jump" {
-		if path != v.f.path || duration != 30 || v.f.start != 60 || v.f.end != 90 {
+		if path != v.f.path || duration != 30 || v.f.start != -1 || v.f.end != 90 {
 			return probeObservation{}, errors.New("interval range or duration was not preserved")
 		}
 		return check(`{"format":{"duration":"30"},"streams":[{"codec_type":"video","codec_name":"vp9","width":1920,"height":1080,"nb_read_frames":"900"}],"packets":[{"pts_time":"0","duration_time":"0.033"},{"pts_time":"29.967","duration_time":"0.033"}]}`)
@@ -499,6 +500,7 @@ func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 				return
 			}
 			if body.Recording {
+				f.capturePlaybackTime = f.playbackTime
 				f.enforced = body.Enforced
 				f.path = body.Path
 				f.start = body.Start

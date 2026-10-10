@@ -8,6 +8,32 @@ import (
 	"time"
 )
 
+func TestNativeFollowLeavesMovingAttachedCameraToGame(t *testing.T) {
+	r, request, f := testRecorder(t, "camera-follow")
+	r.config.NativeFollow = true
+	r.config.RecoverFocus = true
+	r.config.LaunchTimeout = 5 * time.Second
+	if _, err := r.RecordFull(context.Background(), request); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.followOffsets) != 0 || f.selectCalls != 1 || !f.verified {
+		t.Fatalf("healthy native follow was overwritten: offsets=%d selections=%d verified=%t", len(f.followOffsets), f.selectCalls, f.verified)
+	}
+}
+
+func TestNativeFollowStillRecoversLostAttachment(t *testing.T) {
+	r, request, f := testRecorder(t, "watch-detached")
+	r.config.NativeFollow = true
+	r.config.RecoverFocus = true
+	r.config.LaunchTimeout = 5 * time.Second
+	if _, err := r.RecordFull(context.Background(), request); err != nil {
+		t.Fatal(err)
+	}
+	if !f.restored || f.selectCalls < 2 || len(f.followOffsets) != 0 || !f.verified {
+		t.Fatalf("native follow recovery failed: restored=%t selections=%d offsets=%d", f.restored, f.selectCalls, len(f.followOffsets))
+	}
+}
+
 func TestFocusWatcherRecoversDuringRecording(t *testing.T) {
 	for _, mode := range []string{"watch-wrong-player", "watch-empty", "watch-detached", "watch-position", "watch-ack", "watch-repeated"} {
 		t.Run(mode, func(t *testing.T) {

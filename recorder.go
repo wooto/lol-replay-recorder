@@ -474,12 +474,15 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 		return result, e
 	}
 	const nativePreroll = 5.0
-	// Explicit intervals start at their requested match-time boundary. The
-	// negative five-second workaround is retained only for RecordFull, whose
-	// zero-based output has been calibrated to need it on the tested client.
+	// Explicit positive intervals are settled at their requested boundary first.
+	// -1 captures the current playback position without a second native seek;
+	// requesting that boundary again drops about a second of initial frames.
+	// Full capture retains its separately calibrated negative pre-roll.
 	nativeStart := fromSeconds
 	if full {
 		nativeStart -= nativePreroll
+	} else if fromSeconds > 0 {
+		nativeStart = -1
 	} else if fromSeconds == 0 && toSeconds > 0.1 {
 		// The client has no champion objects at exact zero. Reuse the warmed
 		// preflight position to avoid its zero-time reload; verify actual packet
@@ -488,6 +491,9 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 	}
 	encoderStart := math.Max(0, nativeStart)
 	seekTime := math.Max(0.1, nativeStart)
+	if !full && fromSeconds > 0 {
+		seekTime = fromSeconds
+	}
 	stage = StageRecord
 	r.emit(stage, 0, duration)
 	// Seek to the native output start so recording startup does not rewind the
@@ -638,6 +644,9 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 			follower.suspend()
 		}
 		lifecycleReset := follower.requiresLifecycleReset(state.Current)
+		if r.config.NativeFollow {
+			lifecycleReset = false
+		}
 		// Keep watching throughout capture. Correct a changed player, detached
 		// camera, invalid view or unexpected offset before the fatal checks below.
 		// Empty selections retain the existing death/respawn handling.
@@ -733,7 +742,7 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 			}
 		}
 		if locked(render, target, request.Target) {
-			if *state.Recording && !preRoll {
+			if *state.Recording && !preRoll && !r.config.NativeFollow {
 				lifecycleReset = follower.requiresLifecycleReset(state.Current)
 				if !lifecycleReset && !cameraOffsetMatches(*render.SelectionOffset, expectedCameraOffset) {
 					return result, fmt.Errorf("%w at %.3fs (between-update camera follow offset readback %+v, expected %+v)", ErrCameraLock, state.Current, *render.SelectionOffset, expectedCameraOffset)

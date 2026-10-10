@@ -21,11 +21,14 @@ func TestRecordIntervalRebasesCameraAndCapturesOnlyRequestedMatchTime(t *testing
 	if err != nil {
 		t.Fatalf("short interval recording failed: %v", err)
 	}
-	if result.DurationSeconds != 30 || result.ObservedDurationSeconds == nil || *result.ObservedDurationSeconds != 30 || result.FirstVideoPTSSeconds == nil || *result.FirstVideoPTSSeconds != 0 || result.LastVideoEndSeconds == nil || *result.LastVideoEndSeconds != 30 || f.start != 60 || f.end != 90 || f.playbackTime != 90 {
+	if result.DurationSeconds != 30 || result.ObservedDurationSeconds == nil || *result.ObservedDurationSeconds != 30 || result.FirstVideoPTSSeconds == nil || *result.FirstVideoPTSSeconds != 0 || result.LastVideoEndSeconds == nil || *result.LastVideoEndSeconds != 30 || f.start != -1 || f.end != 90 || f.playbackTime != 90 {
 		t.Fatalf("interval bounds were not applied: result=%+v start=%v end=%v playback=%v", result, f.start, f.end, f.playbackTime)
 	}
 	if !f.selected || !f.verified || !f.closed {
 		t.Fatalf("interval recording skipped target verification or process cleanup: %+v", f)
+	}
+	if f.capturePlaybackTime != 60 {
+		t.Fatalf("capture must start at the settled interval boundary: %v", f.capturePlaybackTime)
 	}
 	for _, offset := range f.followOffsets {
 		if !cameraOffsetMatches(offset, baseCameraOffset) {
