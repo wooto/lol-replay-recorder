@@ -619,8 +619,11 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 			// Starting the encoder can temporarily remove game objects. Recover an
 			// empty selection only at native preroll or requested video start; a
 			// different selected player or any later lock loss remains fatal.
-			atEncoderStart := state.Current >= encoderStart && state.Current <= encoderStart+0.25
-			atVideoStart := state.Current >= fromSeconds && state.Current <= fromSeconds+0.25
+			// Native playback clocks can report a frame just before the configured
+			// boundary. Treat that narrow edge as startup so transient empty target
+			// selection can be restored before the requested interval begins.
+			atEncoderStart := state.Current >= encoderStart-0.25 && state.Current <= encoderStart+0.25
+			atVideoStart := state.Current >= fromSeconds-0.25 && state.Current <= fromSeconds+0.25
 			if (atEncoderStart || atVideoStart) && render.SelectionName == "" && time.Now().Before(startDeadline) {
 				if err = r.api.request(recordingCtx, "POST", "/replay/render", map[string]any{"selectionName": selectionName, "cameraAttached": true}, nil); err != nil {
 					return result, err
