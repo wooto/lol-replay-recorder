@@ -122,11 +122,15 @@ type Request struct {
 	FPS        int
 }
 type Result struct {
-	Path            string    `json:"path"`
-	Target          RiotID    `json:"target"`
-	DurationSeconds float64   `json:"duration_seconds"`
-	StartedAt       time.Time `json:"started_at"`
-	FinishedAt      time.Time `json:"finished_at"`
+	Path   string `json:"path"`
+	Target RiotID `json:"target"`
+	// DurationSeconds remains the requested interval length for compatibility.
+	DurationSeconds         float64   `json:"duration_seconds"`
+	ObservedDurationSeconds *float64  `json:"observed_duration_seconds,omitempty"`
+	FirstVideoPTSSeconds    *float64  `json:"first_video_pts_seconds,omitempty"`
+	LastVideoEndSeconds     *float64  `json:"last_video_end_seconds,omitempty"`
+	StartedAt               time.Time `json:"started_at"`
+	FinishedAt              time.Time `json:"finished_at"`
 }
 
 // Error retains the failing stage and any incomplete output. PartialPath is never

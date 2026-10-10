@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -118,49 +119,53 @@ func (d fakeDesktop) selectPlayer(_ context.Context, _ int, key uint16) error {
 type fakeVerifier struct{ f *fixture }
 
 func (v fakeVerifier) ready() error { return nil }
-func (v fakeVerifier) verify(_ context.Context, path string, duration float64) error {
+func (v fakeVerifier) verify(_ context.Context, path string, duration float64, width, height int) (probeObservation, error) {
 	v.f.mu.Lock()
 	defer v.f.mu.Unlock()
 	v.f.verified = true
+	valid := probeObservation{DurationSeconds: duration, LastVideoEndSeconds: duration}
+	check := func(body string) (probeObservation, error) {
+		return validateProbeReader(strings.NewReader(body), duration, width, height)
+	}
 	if v.f.mode == "native-empty-programs" {
-		return validateProbe([]byte(`{"programs":[],"format":{"duration":"90"},"streams":[{"codec_type":"video","nb_read_frames":"2700"}],"packets":[{"pts_time":"0","duration_time":"0.033"},{"pts_time":"89.967","duration_time":"0.033"}]}`), duration)
+		return check(`{"programs":[],"format":{"duration":"90"},"streams":[{"codec_type":"video","codec_name":"vp9","width":1920,"height":1080,"nb_read_frames":"2700"}],"packets":[{"pts_time":"0","duration_time":"0.033"},{"pts_time":"89.967","duration_time":"0.033"}]}`)
 	}
 	if v.f.mode == "native-preroll" {
 		if v.f.start != -5 {
-			return validateProbe([]byte(`{"format":{"duration":"90"},"streams":[{"codec_type":"video","nb_read_frames":"2500"}],"packets":[{"pts_time":"0","duration_time":"0.033"},{"pts_time":"84.967","duration_time":"0.033"}]}`), duration)
+			return check(`{"format":{"duration":"90"},"streams":[{"codec_type":"video","codec_name":"vp9","width":1920,"height":1080,"nb_read_frames":"2500"}],"packets":[{"pts_time":"0","duration_time":"0.033"},{"pts_time":"84.967","duration_time":"0.033"}]}`)
 		}
-		return validateProbe([]byte(`{"format":{"duration":"90"},"streams":[{"codec_type":"video","nb_read_frames":"2700"}],"packets":[{"pts_time":"0","duration_time":"0.033"},{"pts_time":"89.967","duration_time":"0.033"}]}`), duration)
+		return check(`{"format":{"duration":"90"},"streams":[{"codec_type":"video","codec_name":"vp9","width":1920,"height":1080,"nb_read_frames":"2700"}],"packets":[{"pts_time":"0","duration_time":"0.033"},{"pts_time":"89.967","duration_time":"0.033"}]}`)
 	}
 	if v.f.mode == "native-video-short" {
-		return validateProbe([]byte(`{"format":{"duration":"90"},"streams":[{"codec_type":"video","nb_read_frames":"1350"}],"packets":[{"pts_time":"0","duration_time":"0.033"},{"pts_time":"44.967","duration_time":"0.033"}]}`), duration)
+		return check(`{"format":{"duration":"90"},"streams":[{"codec_type":"video","codec_name":"vp9","width":1920,"height":1080,"nb_read_frames":"1350"}],"packets":[{"pts_time":"0","duration_time":"0.033"},{"pts_time":"44.967","duration_time":"0.033"}]}`)
 	}
 	if v.f.mode == "camera-offset" && (!v.f.cameraProfile || !v.f.cameraTrack) {
-		return ErrCameraLock
+		return probeObservation{}, ErrCameraLock
 	}
 	if v.f.mode == "corrupt" {
-		return ErrRecordingIncomplete
+		return probeObservation{}, ErrRecordingIncomplete
 	}
 	if v.f.mode == "interval" || v.f.mode == "interval-camera-jump" {
 		if path != v.f.path || duration != 30 || v.f.start != 60 || v.f.end != 90 {
-			return errors.New("interval range or duration was not preserved")
+			return probeObservation{}, errors.New("interval range or duration was not preserved")
 		}
-		return validateProbe([]byte(`{"format":{"duration":"30"},"streams":[{"codec_type":"video","nb_read_frames":"900"}],"packets":[{"pts_time":"0","duration_time":"0.033"},{"pts_time":"29.967","duration_time":"0.033"}]}`), duration)
+		return check(`{"format":{"duration":"30"},"streams":[{"codec_type":"video","codec_name":"vp9","width":1920,"height":1080,"nb_read_frames":"900"}],"packets":[{"pts_time":"0","duration_time":"0.033"},{"pts_time":"29.967","duration_time":"0.033"}]}`)
 	}
 	if v.f.mode == "full-interval" && (path != v.f.path || duration != 90 || v.f.start != 0.1 || v.f.end != 90) {
-		return errors.New("full-length interval range or duration was not preserved")
+		return probeObservation{}, errors.New("full-length interval range or duration was not preserved")
 	}
 	if path != v.f.path || duration != 90 {
-		return errors.New("incorrect output passed to verifier")
+		return probeObservation{}, errors.New("incorrect output passed to verifier")
 	}
 	if v.f.mode == "native-wall-clock" {
 		// This native-client fixture models the observed accelerated encoder:
 		// a whole game yields shortened media, despite successful API progress.
 		if v.f.enforced {
-			return validateProbe([]byte(`{"format":{"duration":"45"},"streams":[{"codec_type":"video","nb_read_frames":"1350"}]}`), duration)
+			return check(`{"format":{"duration":"45"},"streams":[{"codec_type":"video","codec_name":"vp9","width":1920,"height":1080,"nb_read_frames":"1350"}]}`)
 		}
-		return validateProbe([]byte(`{"format":{"duration":"90"},"streams":[{"codec_type":"video","nb_read_frames":"2700"}],"packets":[{"pts_time":"0","duration_time":"0.033"},{"pts_time":"89.967","duration_time":"0.033"}]}`), duration)
+		return check(`{"format":{"duration":"90"},"streams":[{"codec_type":"video","codec_name":"vp9","width":1920,"height":1080,"nb_read_frames":"2700"}],"packets":[{"pts_time":"0","duration_time":"0.033"},{"pts_time":"89.967","duration_time":"0.033"}]}`)
 	}
-	return nil
+	return valid, nil
 }
 func (f *fixture) serve(w http.ResponseWriter, request *http.Request) {
 	f.mu.Lock()

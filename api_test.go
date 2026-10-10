@@ -3,6 +3,7 @@ package recorder
 import (
 	"context"
 	"errors"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -102,20 +103,40 @@ func TestOversizedWhitespaceCannotHideTrailingResponseData(t *testing.T) {
 }
 func TestProbeRejectsPartialOrUndecodableVideo(t *testing.T) {
 	for _, body := range []string{
-		`{"format":{"duration":"30"},"streams":[{"codec_type":"video","nb_read_frames":"100"}]}`,
-		`{"format":{"duration":"NaN"},"streams":[{"codec_type":"video","nb_read_frames":"100"}]}`,
+		`{"format":{"duration":"30"},"streams":[{"codec_type":"video","codec_name":"vp9","width":1920,"height":1080,"nb_read_frames":"100"}]}`,
+		`{"format":{"duration":"NaN"},"streams":[{"codec_type":"video","codec_name":"vp9","width":1920,"height":1080,"nb_read_frames":"100"}]}`,
 		`{"format":{"duration":"90"},"streams":[{"codec_type":"audio","nb_read_frames":"100"}]}`,
-		`{"format":{"duration":"90"},"streams":[{"codec_type":"video","nb_read_frames":"0"}]}`,
+		`{"format":{"duration":"90"},"streams":[{"codec_type":"video","codec_name":"vp9","width":1920,"height":1080,"nb_read_frames":"0"}]}`,
 	} {
 		if err := validateProbe([]byte(body), 90); err == nil {
 			t.Fatalf("accepted %s", body)
 		}
 	}
-	if err := validateProbe([]byte(`{"format":{"duration":"90.1"},"streams":[{"codec_type":"video","nb_read_frames":"5400"}],"packets":[{"pts_time":"0","duration_time":"0.017"},{"pts_time":"89.983","duration_time":"0.017"}]}`), 90); err != nil {
+	if err := validateProbe([]byte(`{"format":{"duration":"90.1"},"streams":[{"codec_type":"video","codec_name":"vp9","width":1920,"height":1080,"nb_read_frames":"5400"}],"packets":[{"pts_time":"0","duration_time":"0.017"},{"pts_time":"89.983","duration_time":"0.017"}]}`), 90); err != nil {
 		t.Fatal(err)
 	}
-	shortVideo := validateProbe([]byte(`{"format":{"duration":"90"},"streams":[{"codec_type":"video","nb_read_frames":"480"}],"packets":[{"pts_time":"0.047","duration_time":"0.033"},{"pts_time":"7.827","duration_time":"0.033"}]}`), 90)
+	shortVideo := validateProbe([]byte(`{"format":{"duration":"90"},"streams":[{"codec_type":"video","codec_name":"vp9","width":1920,"height":1080,"nb_read_frames":"480"}],"packets":[{"pts_time":"0.047","duration_time":"0.033"},{"pts_time":"7.827","duration_time":"0.033"}]}`), 90)
 	if !errors.Is(shortVideo, ErrRecordingIncomplete) || !strings.Contains(shortVideo.Error(), "firstPTS=0.047000s lastEnd=7.860000s") {
 		t.Fatalf("short video should report its measured packet bounds: %v", shortVideo)
+	}
+}
+
+func TestProbeReturnsObservedTimingAndValidatesVideoContract(t *testing.T) {
+	body := `{"format":{"duration":"30.1"},"streams":[{"codec_type":"video","codec_name":"vp9","width":1920,"height":1080,"nb_read_frames":"217"}],"packets":[{"pts_time":"0.1","duration_time":"0.02"},{"pts_time":"29.58","duration_time":"0.02"}]}`
+	observed, err := validateProbeReader(strings.NewReader(body), 30, 1920, 1080)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if math.Abs(observed.DurationSeconds-30.1) > 1e-9 || math.Abs(observed.FirstVideoPTSSeconds-0.1) > 1e-9 || math.Abs(observed.LastVideoEndSeconds-29.6) > 1e-9 {
+		t.Fatalf("unexpected observation: %+v", observed)
+	}
+	for _, body := range []string{
+		strings.Replace(body, `"width":1920`, `"width":1280`, 1),
+		strings.Replace(body, `"height":1080`, `"height":720`, 1),
+		strings.Replace(body, `"codec_name":"vp9"`, `"codec_name":"av1"`, 1),
+	} {
+		if _, err := validateProbeReader(strings.NewReader(body), 30, 1920, 1080); err == nil {
+			t.Fatalf("accepted incompatible video: %s", body)
+		}
 	}
 }

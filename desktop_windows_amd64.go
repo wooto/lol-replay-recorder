@@ -17,18 +17,19 @@ import (
 )
 
 var (
-	user32         = syscall.NewLazyDLL("user32.dll")
-	kernel32       = syscall.NewLazyDLL("kernel32.dll")
-	enumWindows    = user32.NewProc("EnumWindows")
-	getWindowPID   = user32.NewProc("GetWindowThreadProcessId")
-	isVisible      = user32.NewProc("IsWindowVisible")
-	showWindow     = user32.NewProc("ShowWindow")
-	setForeground  = user32.NewProc("SetForegroundWindow")
-	getForeground  = user32.NewProc("GetForegroundWindow")
-	sendInput      = user32.NewProc("SendInput")
-	mapVirtualKey  = user32.NewProc("MapVirtualKeyExW")
-	keyboardLayout = user32.NewProc("GetKeyboardLayout")
-	createMutex    = kernel32.NewProc("CreateMutexW")
+	user32           = syscall.NewLazyDLL("user32.dll")
+	kernel32         = syscall.NewLazyDLL("kernel32.dll")
+	enumWindows      = user32.NewProc("EnumWindows")
+	getWindowPID     = user32.NewProc("GetWindowThreadProcessId")
+	isVisible        = user32.NewProc("IsWindowVisible")
+	showWindow       = user32.NewProc("ShowWindow")
+	setForeground    = user32.NewProc("SetForegroundWindow")
+	getForeground    = user32.NewProc("GetForegroundWindow")
+	sendInput        = user32.NewProc("SendInput")
+	mapVirtualKey    = user32.NewProc("MapVirtualKeyExW")
+	keyboardLayout   = user32.NewProc("GetKeyboardLayout")
+	getAsyncKeyState = user32.NewProc("GetAsyncKeyState")
+	createMutex      = kernel32.NewProc("CreateMutexW")
 )
 
 type nativeDesktop struct{}
@@ -157,6 +158,12 @@ func (nativeDesktop) selectPlayer(ctx context.Context, pid int, key uint16) erro
 		foreground, _, _ := getForeground.Call()
 		if foreground != window {
 			return errors.New("game lost foreground before camera selection")
+		}
+		if err := refuseHeldModifiers(func(key uint16) bool {
+			state, _, _ := getAsyncKeyState.Call(uintptr(key))
+			return state&0x8000 != 0
+		}); err != nil {
+			return err
 		}
 		var ownerPID uint32
 		thread, _, _ := getWindowPID.Call(window, uintptr(unsafe.Pointer(&ownerPID)))

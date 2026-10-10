@@ -52,7 +52,7 @@ type desktop interface {
 }
 type mediaVerifier interface {
 	ready() error
-	verify(context.Context, string, float64) error
+	verify(context.Context, string, float64, int, int) (probeObservation, error)
 }
 
 // Recorder is reusable. At most one RecordFull call may run at a time. New does
@@ -754,11 +754,15 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 			return result, err
 		}
 	}
-	if err = r.verifier.verify(finalizeCtx, request.OutputPath, duration); err != nil {
+	observation, verifyErr := r.verifier.verify(finalizeCtx, request.OutputPath, duration, request.Width, request.Height)
+	if verifyErr != nil {
+		err = verifyErr
 		return result, err
 	}
-	return Result{Path: request.OutputPath, Target: request.Target, DurationSeconds: duration, StartedAt: start, FinishedAt: time.Now().UTC()}, nil
+	return Result{Path: request.OutputPath, Target: request.Target, DurationSeconds: duration, ObservedDurationSeconds: floatPointer(observation.DurationSeconds), FirstVideoPTSSeconds: floatPointer(observation.FirstVideoPTSSeconds), LastVideoEndSeconds: floatPointer(observation.LastVideoEndSeconds), StartedAt: start, FinishedAt: time.Now().UTC()}, nil
 }
+
+func floatPointer(value float64) *float64 { return &value }
 
 // selectTarget focuses the owned replay window, selects a spectator slot using
 // its configured hotkey, and returns the Replay API readback for identity
