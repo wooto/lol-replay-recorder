@@ -149,7 +149,7 @@ func (c *Client) DownloadReplay(ctx context.Context, id uint64, poll time.Durati
 			if !filepath.IsAbs(dir) {
 				return Replay{}, errors.New("client replay directory must be absolute")
 			}
-			file := filepath.Join(dir, region.Region+"-"+path+".rofl")
+			file := filepath.Join(dir, replayPlatform(region.Region)+"-"+path+".rofl")
 			info, err := os.Stat(file)
 			if err != nil || !info.Mode().IsRegular() || info.Size() == 0 {
 				return Replay{}, ErrReplayFile

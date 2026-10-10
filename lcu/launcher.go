@@ -52,7 +52,7 @@ func (c *Client) LaunchReplay(ctx context.Context, replay Replay, config LaunchC
 	if err = c.http.Request(ctx, "GET", "/lol-replays/v1/rofls/path", nil, &dir); err != nil {
 		return nil, err
 	}
-	expected := filepath.Join(dir, region.Region+"-"+strconv.FormatUint(replay.GameID, 10)+".rofl")
+	expected := filepath.Join(dir, replayPlatform(region.Region)+"-"+strconv.FormatUint(replay.GameID, 10)+".rofl")
 	if !filepath.IsAbs(dir) || filepath.Clean(expected) != filepath.Clean(replay.Path) {
 		return nil, ErrReplayFile
 	}
