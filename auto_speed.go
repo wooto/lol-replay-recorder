@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+const speedControlTimeout = time.Second
+
 // SpeedSegment records contiguous game-time coverage at an acknowledged speed.
 type SpeedSegment struct {
 	FromSeconds float64 `json:"from_seconds"`
@@ -88,7 +90,7 @@ func (t *speedTimeline) finish() []SpeedSegment {
 
 // This runs in the existing recorder loop; it never competes with camera writes.
 func (r *Recorder) updateAutoSpeed(ctx context.Context, pid int, target player, id RiotID, t *speedTimeline) error {
-	ctx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+	ctx, cancel := context.WithTimeout(ctx, speedControlTimeout)
 	defer cancel()
 	if err := r.checkSpeedOwner(ctx, pid); err != nil {
 		return err
@@ -109,7 +111,7 @@ func (r *Recorder) updateAutoSpeed(ctx context.Context, pid int, target player, 
 	valid := err == nil && locateErr == nil && current.Team == target.Team && live.Clock.Time != nil && finiteNumber(*live.Clock.Time) && math.Abs(*live.Clock.Time-playback.Time) <= 2
 	// Reserve the whole bounded controller budget and the next poll at 4x.
 	// Restoration therefore starts early enough to retain three normal seconds.
-	margin := 4 * (1.0 + cameraPollInterval(r.config.PollInterval).Seconds())
+	margin := 4 * (2*speedControlTimeout.Seconds() + cameraPollInterval(r.config.PollInterval).Seconds())
 	remaining := current.RespawnTimer
 	if valid && remaining != nil {
 		projected := *remaining - math.Max(0, playback.Time-*live.Clock.Time) - margin
@@ -127,13 +129,13 @@ func (r *Recorder) updateAutoSpeed(ctx context.Context, pid int, target player, 
 
 func speedCycleContext(ctx context.Context, speed float64) (context.Context, context.CancelFunc) {
 	if speed == 4 {
-		return context.WithTimeout(ctx, 500*time.Millisecond)
+		return context.WithTimeout(ctx, speedControlTimeout)
 	}
 	return ctx, func() {}
 }
 
 func (r *Recorder) applyAutoSpeed(ctx context.Context, pid int, t *speedTimeline, want float64) error {
-	ctx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+	ctx, cancel := context.WithTimeout(ctx, speedControlTimeout)
 	defer cancel()
 	// Recheck ownership immediately before mutation, including after slow live reads.
 	if err := r.checkSpeedOwner(ctx, pid); err != nil {

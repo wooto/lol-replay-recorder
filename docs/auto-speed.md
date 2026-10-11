@@ -7,7 +7,7 @@ disabled. No second camera/controller goroutine is started.
 Only verified target deaths are compressed. The first five observed game seconds
 stay at 1x, then a valid remaining respawn timer greater than three seconds permits
 4x. Restoration starts before the three-second respawn boundary, reserving a
-500ms controller budget and polling latency at 4x. Camera recovery restores 1x
+one-second controller budget, one-second monitoring budget, and polling latency at 4x. Camera recovery restores 1x
 before blocking work. The last three seconds before respawn and completion stay at 1x.
 Missing/stale target status restores 1x; failed writes/readbacks fail the recording.
 Opening acceleration is intentionally unavailable because no reliable attack or

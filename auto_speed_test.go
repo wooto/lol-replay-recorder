@@ -84,7 +84,7 @@ func TestAutoSpeedMainLoopBoundsSlowRender(t *testing.T) {
 			select {
 			case <-q.Context().Done():
 				return
-			case <-time.After(time.Second):
+			case <-time.After(2 * speedControlTimeout):
 			}
 		}
 		f.serve(w, q)
