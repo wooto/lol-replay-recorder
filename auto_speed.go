@@ -40,12 +40,7 @@ type deathSpeedPolicy struct {
 }
 
 func (p *deathSpeedPolicy) desired(at float64, dead *bool, remaining *float64, valid bool) float64 {
-	if !valid || dead == nil {
-		p.tracking = false
-		p.finished = false
-		return 1
-	}
-	if !*dead {
+	if !valid || dead == nil || !*dead {
 		p.tracking = false
 		p.finished = false
 		return 1
@@ -95,12 +90,8 @@ func (t *speedTimeline) finish() []SpeedSegment {
 func (r *Recorder) updateAutoSpeed(ctx context.Context, pid int, target player, id RiotID, t *speedTimeline) error {
 	ctx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
 	defer cancel()
-	var owner gameState
-	if err := r.api.request(ctx, "GET", "/replay/game", nil, &owner); err != nil {
+	if err := r.checkSpeedOwner(ctx, pid); err != nil {
 		return err
-	}
-	if owner.PID != pid {
-		return errors.New("speed controller ownership changed")
 	}
 	var playback playbackState
 	if err := r.api.request(ctx, "GET", "/replay/playback", nil, &playback); err != nil {
@@ -144,13 +135,9 @@ func speedCycleContext(ctx context.Context, speed float64) (context.Context, con
 func (r *Recorder) applyAutoSpeed(ctx context.Context, pid int, t *speedTimeline, want float64) error {
 	ctx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
 	defer cancel()
-	var owner gameState
 	// Recheck ownership immediately before mutation, including after slow live reads.
-	if err := r.api.request(ctx, "GET", "/replay/game", nil, &owner); err != nil {
+	if err := r.checkSpeedOwner(ctx, pid); err != nil {
 		return err
-	}
-	if owner.PID != pid {
-		return errors.New("speed controller ownership changed")
 	}
 	// POST returns the authoritative playback state at application, avoiding
 	// an accumulated timing bias from subsequent readback latency.
@@ -158,23 +145,36 @@ func (r *Recorder) applyAutoSpeed(ctx context.Context, pid int, t *speedTimeline
 	if err := r.api.request(ctx, "POST", "/replay/playback", map[string]any{"speed": want}, &applied); err != nil {
 		return err
 	}
-	if !finiteNumber(applied.Time) || applied.Time < t.at || !finiteNumber(applied.Speed) || math.Abs(applied.Speed-want) > 0.01 {
+	if !speedAcknowledged(applied, t.at, want) {
 		return errors.New("speed application omitted authoritative state")
 	}
 	var playback playbackState
 	if err := r.api.request(ctx, "GET", "/replay/playback", nil, &playback); err != nil {
 		return err
 	}
-	if !finiteNumber(playback.Time) || playback.Time < t.at || !finiteNumber(playback.Speed) || math.Abs(playback.Speed-want) > 0.01 {
+	if !speedAcknowledged(playback, t.at, want) {
 		return errors.New("automatic speed readback failed")
 	}
+	if err := r.checkSpeedOwner(ctx, pid); err != nil {
+		return err
+	}
+	t.change(applied.Time, want)
+	r.config.Logger.Info("replay speed changed", "game_seconds", applied.Time, "speed", want)
+	return nil
+}
+
+func speedAcknowledged(state playbackState, earliest, speed float64) bool {
+	return finiteNumber(state.Time) && state.Time >= earliest &&
+		finiteNumber(state.Speed) && math.Abs(state.Speed-speed) <= 0.01
+}
+
+func (r *Recorder) checkSpeedOwner(ctx context.Context, pid int) error {
+	var owner gameState
 	if err := r.api.request(ctx, "GET", "/replay/game", nil, &owner); err != nil {
 		return err
 	}
 	if owner.PID != pid {
-		return errors.New("speed controller ownership changed during readback")
+		return errors.New("speed controller ownership changed")
 	}
-	t.change(applied.Time, want)
-	r.config.Logger.Info("replay speed changed", "game_seconds", applied.Time, "speed", want)
 	return nil
 }
