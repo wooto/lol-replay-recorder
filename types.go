@@ -60,6 +60,9 @@ type Progress struct {
 // Config controls the local client. The zero value selects documented defaults.
 // ExtraLaunchArgs override the default launch arguments when non-nil.
 type Config struct {
+	// AutoSpeed compresses confirmed death waits. Opening acceleration is not
+	// enabled: the documented APIs do not expose reliable first-attack telemetry.
+	AutoSpeed      bool
 	GameExecutable string
 	// LaunchReplay optionally launches through the calling application's client
 	// integration. It must return only the process it launched, never an existing
@@ -131,8 +134,10 @@ type Request struct {
 	FPS        int
 }
 type Result struct {
-	Path   string `json:"path"`
-	Target RiotID `json:"target"`
+	ExpectedMediaSeconds *float64       `json:"expected_media_seconds,omitempty"`
+	SpeedSegments        []SpeedSegment `json:"speed_segments,omitempty"`
+	Path                 string         `json:"path"`
+	Target               RiotID         `json:"target"`
 	// DurationSeconds remains the requested interval length for compatibility.
 	DurationSeconds         float64   `json:"duration_seconds"`
 	ObservedDurationSeconds *float64  `json:"observed_duration_seconds,omitempty"`

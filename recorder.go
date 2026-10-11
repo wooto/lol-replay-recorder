@@ -414,6 +414,7 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 		return result, errors.New("recording interval exceeds replay length")
 	}
 	duration := toSeconds - fromSeconds
+	timeline := speedTimeline{from: fromSeconds, to: toSeconds, at: fromSeconds, speed: 1}
 	if !finitePositive(duration) {
 		return result, errors.New("invalid recording interval duration")
 	}
@@ -627,7 +628,11 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 	deadFocusPending := false
 	lastObservedCurrent := 0.0
 	endingReadsStarted := false
+	var cycleCtx context.Context
+	cycleCancel := func() {}
+	defer func() { cycleCancel() }()
 	for {
+		cycleCancel()
 		nearEnd := started && lastObservedCurrent >= toSeconds-1
 		if nearEnd && !endingReadsStarted {
 			endingCtx, cancelEnding := context.WithTimeout(recordingCtx, r.config.FinalizeTimeout)
@@ -635,12 +640,13 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 			recordingCtx = endingCtx
 			endingReadsStarted = true
 		}
+		cycleCtx, cycleCancel = speedCycleContext(recordingCtx, timeline.speed)
 		if process.exited() {
 			return result, errors.New("game exited during recording")
 		}
 		var owner gameState
-		if err = r.api.request(recordingCtx, "GET", "/replay/game", nil, &owner); err != nil {
-			if retryEndingRead(recordingCtx, err, nearEnd) {
+		if err = r.api.request(cycleCtx, "GET", "/replay/game", nil, &owner); err != nil {
+			if retryEndingRead(cycleCtx, err, nearEnd) {
 				continue
 			}
 			return result, err
@@ -648,10 +654,10 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 		if owner.PID != process.pid() {
 			return result, errors.New("Replay API ownership changed during recording")
 		}
-		state, readErr := r.recordingStatus(recordingCtx, process.pid(), started && lastObservedCurrent >= toSeconds-1)
+		state, readErr := r.recordingStatus(cycleCtx, process.pid(), started && lastObservedCurrent >= toSeconds-1)
 		if readErr != nil {
 			err = readErr
-			if retryEndingRead(recordingCtx, err, nearEnd) {
+			if retryEndingRead(cycleCtx, err, nearEnd) {
 				continue
 			}
 			return result, err
@@ -664,7 +670,7 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 		// require playback at the known end, then validate the entire output below.
 		if started && !*state.Recording && state.Path == "" && state.Start == -1 && state.End == -1 && state.Current == 0 {
 			var ended playbackState
-			if err = r.api.request(recordingCtx, "GET", "/replay/playback", nil, &ended); err != nil {
+			if err = r.api.request(cycleCtx, "GET", "/replay/playback", nil, &ended); err != nil {
 				return result, err
 			}
 			if ended.Seeking || !finitePositive(ended.Time) || !finitePositive(ended.Length) || math.Abs(ended.Length-length) > 0.5 || ended.Time < toSeconds-0.5 {
@@ -681,7 +687,7 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 			if time.Now().After(startDeadline) {
 				return result, ErrRecordingIncomplete
 			}
-			if err = wait(recordingCtx, r.config.PollInterval); err != nil {
+			if err = wait(cycleCtx, r.config.PollInterval); err != nil {
 				return result, err
 			}
 			continue
@@ -702,9 +708,16 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 		if r.config.RecoverFocus && started && !*state.Recording && state.Current >= toSeconds-0.5 {
 			break
 		}
+		if r.config.AutoSpeed && *state.Recording && state.Current >= fromSeconds && (state.Current < toSeconds-1 || timeline.speed != 1) {
+			if err = r.updateAutoSpeed(cycleCtx, process.pid(), target, request.Target, &timeline); err != nil {
+				return result, err
+			}
+			cycleCancel()
+			cycleCtx, cycleCancel = speedCycleContext(recordingCtx, timeline.speed)
+		}
 		var render renderState
-		if err = r.api.request(recordingCtx, "GET", "/replay/render", nil, &render); err != nil {
-			if retryEndingRead(recordingCtx, err, nearEnd) {
+		if err = r.api.request(cycleCtx, "GET", "/replay/render", nil, &render); err != nil {
+			if retryEndingRead(cycleCtx, err, nearEnd) {
 				continue
 			}
 			return result, err
@@ -714,9 +727,9 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 		if r.config.RecoverFocus && nearEnd && !selectionLocked {
 			// Encoding may finish between the status and camera reads. Recheck
 			// completion before sending keys into a reset post-recording view.
-			latest, readErr := r.recordingStatus(recordingCtx, process.pid(), true)
+			latest, readErr := r.recordingStatus(cycleCtx, process.pid(), true)
 			if readErr != nil {
-				if retryEndingRead(recordingCtx, readErr, true) {
+				if retryEndingRead(cycleCtx, readErr, true) {
 					continue
 				}
 				return result, readErr
@@ -741,7 +754,7 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 		confirmedDeath := false
 		if r.config.RecoverFocus && (render.SelectionName == "" || selectedIdentity(render, target, request.Target)) && !locked(render, target, request.Target) {
 			var live gameData
-			if err = r.api.request(recordingCtx, "GET", "/liveclientdata/allgamedata", nil, &live); err != nil {
+			if err = r.api.request(cycleCtx, "GET", "/liveclientdata/allgamedata", nil, &live); err != nil {
 				return result, err
 			}
 			_, current, e := locateTarget(live.Players, request.Target)
@@ -751,10 +764,17 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 			deadFocusPending = false
 		}
 		if confirmedDeath && !deadFocusPending && (render.CameraAttached == nil || !*render.CameraAttached) {
+			if r.config.AutoSpeed && timeline.speed != 1 {
+				if err = r.applyAutoSpeed(cycleCtx, process.pid(), &timeline, 1); err != nil {
+					return result, err
+				}
+				cycleCancel()
+				cycleCtx, cycleCancel = speedCycleContext(recordingCtx, 1)
+			}
 			if !recoveryBudget.allow(time.Now()) {
 				return result, ErrCameraLock
 			}
-			render, err = r.recoverDeadFocus(recordingCtx, process.pid(), r.config.SelectionKeys[index], target, request.Target, state.Current)
+			render, err = r.recoverDeadFocus(cycleCtx, process.pid(), r.config.SelectionKeys[index], target, request.Target, state.Current)
 			if err != nil {
 				return result, err
 			}
@@ -763,10 +783,17 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 			follower.suspend()
 		}
 		if r.config.RecoverFocus && !confirmedDeath && focusDrift(render, target, request.Target, expectedCameraOffset, !preRoll && !lifecycleReset) {
+			if r.config.AutoSpeed && timeline.speed != 1 {
+				if err = r.applyAutoSpeed(cycleCtx, process.pid(), &timeline, 1); err != nil {
+					return result, err
+				}
+				cycleCancel()
+				cycleCtx, cycleCancel = speedCycleContext(recordingCtx, 1)
+			}
 			if !recoveryBudget.allow(time.Now()) {
 				return result, fmt.Errorf("%w: focus unstable after five recoveries in 30 seconds", ErrCameraLock)
 			}
-			render, err = r.recoverFocus(recordingCtx, process.pid(), r.config.SelectionKeys[index], target, request.Target, state.Current)
+			render, err = r.recoverFocus(cycleCtx, process.pid(), r.config.SelectionKeys[index], target, request.Target, state.Current)
 			if err != nil {
 				return result, err
 			}
@@ -798,7 +825,7 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 			atEncoderStart := state.Current >= encoderStart-0.25 && state.Current <= encoderStart+0.25
 			atVideoStart := state.Current >= fromSeconds-0.25 && state.Current <= fromSeconds+0.25
 			if (atEncoderStart || atVideoStart) && render.SelectionName == "" && time.Now().Before(startDeadline) {
-				render, err = r.selectTarget(recordingCtx, process.pid(), r.config.SelectionKeys[index])
+				render, err = r.selectTarget(cycleCtx, process.pid(), r.config.SelectionKeys[index])
 				if err != nil {
 					return result, err
 				}
@@ -819,7 +846,7 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 			}
 			// Render and live-data snapshots can straddle a respawn. Re-focus the
 			// owned game and select the same team slot through its verified hotkey.
-			render, err = r.selectTarget(recordingCtx, process.pid(), r.config.SelectionKeys[index])
+			render, err = r.selectTarget(cycleCtx, process.pid(), r.config.SelectionKeys[index])
 			if err != nil {
 				return result, err
 			}
@@ -834,7 +861,7 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 				if render.SelectionName != "" || render.CameraAttached == nil || !*render.CameraAttached {
 					return result, ErrCameraLock
 				}
-				if err = r.api.request(recordingCtx, "GET", "/liveclientdata/allgamedata", nil, &live); err != nil {
+				if err = r.api.request(cycleCtx, "GET", "/liveclientdata/allgamedata", nil, &live); err != nil {
 					return result, err
 				}
 				_, currentTarget, targetErr := locateTarget(live.Players, request.Target)
@@ -868,17 +895,17 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 								{"time": length, "value": baseCameraRotation, "blend": "snap"},
 							},
 						}
-						if err = r.api.request(recordingCtx, "POST", "/replay/sequence", sequence, nil); err != nil {
+						if err = r.api.request(cycleCtx, "POST", "/replay/sequence", sequence, nil); err != nil {
 							return result, fmt.Errorf("update camera follow sequence: %w", err)
 						}
 						var selectionLost bool
-						_, selectionLost, err = r.waitForCameraOffset(recordingCtx, target, request.Target, offset, state.Current)
+						_, selectionLost, err = r.waitForCameraOffset(cycleCtx, target, request.Target, offset, state.Current)
 						if err != nil {
 							if r.config.RecoverFocus && errors.Is(err, ErrCameraLock) {
 								if !recoveryBudget.allow(time.Now()) {
 									return result, err
 								}
-								if _, err = r.recoverFocus(recordingCtx, process.pid(), r.config.SelectionKeys[index], target, request.Target, state.Current); err != nil {
+								if _, err = r.recoverFocus(cycleCtx, process.pid(), r.config.SelectionKeys[index], target, request.Target, state.Current); err != nil {
 									return result, err
 								}
 								follower.suspend()
@@ -889,7 +916,7 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 						}
 						if selectionLost {
 							follower.suspend()
-							if err = wait(recordingCtx, cameraPollInterval(r.config.PollInterval)); err != nil {
+							if err = wait(cycleCtx, cameraPollInterval(r.config.PollInterval)); err != nil {
 								return result, err
 							}
 							continue
@@ -915,7 +942,7 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 		}
 		if !*state.Recording {
 			if !started && state.Current < toSeconds-0.5 && time.Now().Before(startDeadline) {
-				if err = wait(recordingCtx, r.config.PollInterval); err != nil {
+				if err = wait(cycleCtx, r.config.PollInterval); err != nil {
 					return result, err
 				}
 				continue
@@ -925,7 +952,7 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 			}
 			break
 		}
-		if err = wait(recordingCtx, cameraPollInterval(r.config.PollInterval)); err != nil {
+		if err = wait(cycleCtx, cameraPollInterval(r.config.PollInterval)); err != nil {
 			return result, err
 		}
 	}
@@ -956,12 +983,23 @@ func (r *Recorder) record(ctx context.Context, request Request, fromSeconds, toS
 			return result, err
 		}
 	}
-	observation, verifyErr := r.verifier.verify(finalizeCtx, request.OutputPath, duration, request.Width, request.Height)
+	expected := duration
+	var segments []SpeedSegment
+	var expectedMedia *float64
+	if r.config.AutoSpeed {
+		segments = timeline.finish()
+		expected, err = ExpectedMediaDuration(segments, fromSeconds, toSeconds)
+		if err != nil {
+			return result, err
+		}
+		expectedMedia = floatPointer(expected)
+	}
+	observation, verifyErr := r.verifier.verify(finalizeCtx, request.OutputPath, expected, request.Width, request.Height)
 	if verifyErr != nil {
 		err = verifyErr
 		return result, err
 	}
-	return Result{Path: request.OutputPath, Target: request.Target, DurationSeconds: duration, ObservedDurationSeconds: floatPointer(observation.DurationSeconds), FirstVideoPTSSeconds: floatPointer(observation.FirstVideoPTSSeconds), LastVideoEndSeconds: floatPointer(observation.LastVideoEndSeconds), StartedAt: start, FinishedAt: time.Now().UTC()}, nil
+	return Result{ExpectedMediaSeconds: expectedMedia, SpeedSegments: segments, Path: request.OutputPath, Target: request.Target, DurationSeconds: duration, ObservedDurationSeconds: floatPointer(observation.DurationSeconds), FirstVideoPTSSeconds: floatPointer(observation.FirstVideoPTSSeconds), LastVideoEndSeconds: floatPointer(observation.LastVideoEndSeconds), StartedAt: start, FinishedAt: time.Now().UTC()}, nil
 }
 
 func floatPointer(value float64) *float64 { return &value }

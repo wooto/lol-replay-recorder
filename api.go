@@ -100,6 +100,7 @@ type gameState struct {
 	PID int `json:"processID"`
 }
 type playbackState struct {
+	Speed   float64 `json:"speed"`
 	Time    float64 `json:"time"`
 	Length  float64 `json:"length"`
 	Paused  bool    `json:"paused"`
@@ -167,13 +168,14 @@ type recordingState struct {
 	Current   float64 `json:"currentTime"`
 }
 type player struct {
-	IsDead       *bool  `json:"isDead"`
-	NameUnique   bool   `json:"-"`
-	RiotID       string `json:"riotId"`
-	GameName     string `json:"riotIdGameName"`
-	TagLine      string `json:"riotIdTagLine"`
-	SummonerName string `json:"summonerName"`
-	Team         string `json:"team"`
+	RespawnTimer *float64 `json:"respawnTimer"`
+	IsDead       *bool    `json:"isDead"`
+	NameUnique   bool     `json:"-"`
+	RiotID       string   `json:"riotId"`
+	GameName     string   `json:"riotIdGameName"`
+	TagLine      string   `json:"riotIdTagLine"`
+	SummonerName string   `json:"summonerName"`
+	Team         string   `json:"team"`
 }
 
 func (p player) identity() string {
